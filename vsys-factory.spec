@@ -7,8 +7,8 @@
 #
 
 %define name vsys
-%define version 0.8
-%define taglevel 16
+%define version 0.7
+%define taglevel 0
 
 %define release %{taglevel}%{?pldistro:.%{pldistro}}%{?date:.%{date}}
 
@@ -50,9 +50,6 @@ rm -rf $RPM_BUILD_ROOT
 /vsys/*
 
 %post
-if [ "$PL_BOOTCD" != "1" ] ; then
-        service vsys restart
-fi
 
 %postun
 
