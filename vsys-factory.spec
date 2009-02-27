@@ -8,7 +8,6 @@
 
 %define name vsys-factory
 %define version 0.7
-%define taglevel 0
 
 %define release %{taglevel}%{?pldistro:.%{pldistro}}%{?date:.%{date}}
 
