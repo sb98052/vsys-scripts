@@ -1,0 +1,16 @@
+#!/usr/bin/perl
+
+use strict;
+
+my $slicename=$ARGV[0];
+my $slice_dev="/vservers/$slicename/dev";
+
+my $name = <STDIN>;
+my $major = <STDIN>;
+my $minor = <STDIN>;
+chomp($name);
+chomp($major);
+chomp($minor);
+
+$name=~s/\.\.//g;
+system("mknod $slice_dev".$name."c $major $minor");
