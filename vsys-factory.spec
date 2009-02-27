@@ -7,7 +7,7 @@
 #
 
 %define name vsys-factory
-%define version 0.7
+%define version 0.8
 %define taglevel 0
 
 %define release %{taglevel}%{?pldistro:.%{pldistro}}%{?date:.%{date}}
@@ -55,3 +55,5 @@ rm -rf $RPM_BUILD_ROOT
 
 %changelog
 
+
+%define module_current_branch 0.7
