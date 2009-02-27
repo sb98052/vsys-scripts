@@ -6,7 +6,7 @@
 # $Id: vsys-factory.spec 9786 2008-07-02 08:54:09Z thierry $
 #
 
-%define name vsys
+%define name vsys-factory
 %define version 0.7
 %define taglevel 0
 
@@ -41,7 +41,7 @@ make
 
 %install
 mkdir -p $RPM_BUILD_ROOT/vsys
-cp * $RPM_BUILD_ROOT/vsys
+cp exec/* $RPM_BUILD_ROOT/vsys
 
 %clean
 rm -rf $RPM_BUILD_ROOT
