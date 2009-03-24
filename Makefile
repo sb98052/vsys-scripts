@@ -1,7 +1,7 @@
 CC=gcc
 CFLAGS=-g -O2
 
-all: dcookie fd_bmsocket
+all: dcookie fd_bmsocket fd_fusemount
 
 dcookie: dcookie.c
 	gcc dcookie.c -o exec/dcookie
