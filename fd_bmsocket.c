@@ -22,7 +22,7 @@ int main(int argc, char *argv[]) {
         printf("Error creating socket: %d\n", errno);
         exit(1);
     }
-    if (setsockopt(magic_socket, SOL_SOCKET, SO_RCVBUF, &rcvbuf, sizeof(unsigned int))) {
+    if (setsockopt(magic_socket, SOL_SOCKET, SO_RCVBUFFORCE, &rcvbuf, sizeof(unsigned int))) {
         printf("Error calling setsockopt: %d\n", errno);
         exit(1);
     }
