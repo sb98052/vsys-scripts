@@ -50,8 +50,8 @@ void check_source(char *source) {
 }
 
 void check_target(char *target) {
-    source[arg_length-1]='\0';
-    if (strstr(source,"..")) {
+    target[arg_length-1]='\0';
+    if (strstr(target,"..")) {
         printf("Tried mounting with target = %s\n", target);
         exit(1);
     }
