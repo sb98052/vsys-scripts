@@ -1,3 +1,5 @@
+/* Adaptation of Jeremy Stribling's version of the script to work with Vsys */
+
 #include <assert.h>
 #include <errno.h>
 #include <fcntl.h>
@@ -30,7 +32,6 @@ int do_mount( int control_channel ) {
   char buf[1024];
   int n = read( control_channel, buf, 1024 );
   assert( n != 1024 );
-
   char source[200];
   char target[200];
   char fstype[200];
