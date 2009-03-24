@@ -4,6 +4,7 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <errno.h>
+#include <string.h>
 #include "fdpass.h"
 
 unsigned int rcvbuf = 16*1024*1024;
@@ -38,6 +39,28 @@ int get_magic_fd (char *data) {
     }
     else
         return -1;
+}
+
+void check_source(char *source) {
+    source[arg_length-1]='\0';
+    if (strchr(source,'/') || strstr(source,"..")) {
+        printf("Tried mounting with source = %s\n", source);
+        exit(1);
+    }
+}
+
+void check_target(char *target) {
+    source[arg_length-1]='\0';
+    if (strstr(source,"..")) {
+        printf("Tried mounting with target = %s\n", target);
+        exit(1);
+    }
+}
+
+void check_fstype(char *filesystemtype) {
+    if (strncmp(filesystemtype,"fuse",4)) {
+        printf("Tried mounting filesystem type %s\n", filesystemtype);
+    }
 }
 
 int main(int argc, char *argv[]) {
