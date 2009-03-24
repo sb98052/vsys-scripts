@@ -12,5 +12,8 @@ fdpass.o: fdpass.c
 fd_bmsocket: fd_bmsocket.c fdpass.o
 	gcc fd_bmsocket.c fdpass.o -o exec/fd_bmsocket
 
+fd_fusemount: fd_fusemount.c fdpass.o
+	gcc fd_fusemount.c fdpass.o -o exec/fd_fusemount
+
 clean: 
 	rm -f exec/*
