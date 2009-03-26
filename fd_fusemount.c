@@ -111,5 +111,10 @@ int main(int argc, char *argv[]) {
     if (!mount(source, slice_target, filesystemtype, mountflags, data)) {
         send_fd(control_channel_fd, magic_fd);
     }
+    else {
+        printf ("Error executing mount\n");
+        exit(1);
+    }
 
+    return 0;
 }
