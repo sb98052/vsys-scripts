@@ -39,15 +39,15 @@ int set_magic_fd (char *data, int new_fd) {
     if (*(ptr+3)!='\0') {
         char *new_data = (char *) malloc(arg_length);
         char *head = (char *) malloc(arg_length);
-        char *tail = (char *) malloc(arg_length);
+        char *tail;
         sscanf(ptr+3,"%d",&fd);
         strncpy(head, data, ptr - data);
         tail = strchr(ptr+3,',');
-        sprintf(new_data,"%sfd=%d,%s",head,new_fd,tail);
+        sprintf(new_data,"%sfd=%d%s",head,new_fd,tail);
         strcpy(data,new_data);
-        free(new_data);
-        free(head);
         free(tail);
+        free(head);
+        free(new_data);
         return fd;
     }
     else
