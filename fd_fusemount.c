@@ -112,7 +112,7 @@ int main(int argc, char *argv[]) {
     check_target(target);
     check_fstype(filesystemtype);
 
-    sprintf(slice_target,"/vservers/%s/%s", target);
+    sprintf(slice_target,"/vservers/%s/%s", slice_name, target);
 
     if (!mount(source, slice_target, filesystemtype, mountflags, data)) {
         send_fd(control_channel_fd, mount_fd);
