@@ -20,7 +20,7 @@ void receive_argument(int control_channel_fd, char *source) {
     }
 }
 
-int get_magic_fd (char *data) {
+int set_magic_fd (char *data, int new_fd) {
     char *ptr;
     int fd;
 
@@ -34,7 +34,17 @@ int get_magic_fd (char *data) {
         return -1;
 
     if (*(ptr+3)!='\0') {
+        char *new_data = (char *) malloc(arg_length);
+        char *head = (char *) malloc(arg_length);
+        char *tail = (char *) malloc(arg_length);
         sscanf(ptr+3,"%d",&fd);
+        strncpy(head, data, ptr - data);
+        tail = strchr(ptr+3,',');
+        sprintf(new_data,"%sfd=%d,%s",head,new_fd,tail);
+        strcpy(data,new_data);
+        free(new_data);
+        free(head);
+        free(tail);
         return fd;
     }
     else
@@ -87,20 +97,16 @@ int main(int argc, char *argv[]) {
     receive_argument(control_channel_fd, target);
     receive_argument(control_channel_fd, filesystemtype);
     receive_argument(control_channel_fd, data);
-    
-    magic_fd = get_magic_fd (data);
-
-    if (magic_fd < 3) {
-        printf("Got fd %d in fusemount\n",magic_fd);
-        exit(1);
-    }
 
     mount_fd = receive_fd (control_channel_fd);
 
-    if (mount_fd != magic_fd) {
-        printf("mount_fd (%d) != magic_fd (%d)\n", mount_fd, magic_fd);
+    if (mount_fd < 2) {
+        printf("mount_fd = %d\n", mount_fd);
         exit(1);
     }
+
+    set_magic_fd(data, mount_fd);
+
 
     check_source(source);
     check_target(target);
@@ -109,7 +115,7 @@ int main(int argc, char *argv[]) {
     sprintf(slice_target,"/vservers/%s/%s", target);
 
     if (!mount(source, slice_target, filesystemtype, mountflags, data)) {
-        send_fd(control_channel_fd, magic_fd);
+        send_fd(control_channel_fd, mount_fd);
     }
     else {
         printf ("Error executing mount\n");
