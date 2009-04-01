@@ -45,7 +45,6 @@ int set_magic_fd (char *data, int new_fd) {
         tail = strchr(ptr+3,',');
         sprintf(new_data,"%sfd=%d%s",head,new_fd,tail);
         strcpy(data,new_data);
-        free(tail);
         free(head);
         free(new_data);
         return fd;
