@@ -3,10 +3,10 @@
 #
 # RPM spec file
 #
-# $Id: vsys-factory.spec 9786 2008-07-02 08:54:09Z thierry $
+# $Id: vsys-scripts.spec 9786 2008-07-02 08:54:09Z thierry $
 #
 
-%define name vsys-factory
+%define name vsys-scripts
 %define version 0.8
 %define taglevel 0
 
@@ -17,7 +17,7 @@ Packager: PlanetLab Central <support@planet-lab.org>
 Distribution: PlanetLab %{plrelease}
 URL: %(echo %{url} | cut -d ' ' -f 2)
 
-Summary: Vsys factory scripts
+Summary: Vsys scripts scripts
 Name: %{name}
 Version: %{version}
 Release: %{release}
@@ -26,7 +26,7 @@ Group: System Environment/Kernel
 BuildRoot: %{_tmppath}/%{name}-%{version}-%{release}-buildroot
 Requires: vsys
 
-Source0: vsys-factory-%{version}.tar.gz
+Source0: vsys-scripts-%{version}.tar.gz
 
 %description
 Vsys scripts for privileged operations on PlanetLab. These scripts are defined by maintainers of various components,
