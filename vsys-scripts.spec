@@ -8,7 +8,7 @@
 
 %define name vsys-scripts
 %define version 0.9
-%define taglevel 0
+%define taglevel 1
 
 %define release %{taglevel}%{?pldistro:.%{pldistro}}%{?date:.%{date}}
 
@@ -54,6 +54,9 @@ rm -rf $RPM_BUILD_ROOT
 %postun
 
 %changelog
+* Mon Apr 06 2009 Sapan Bhatia <sapanb@cs.princeton.edu> - vsys-scripts-0.9-1
+- Tagging to check the sanity of the taglevel, branch number etc.
+
 
 
 %define module_current_branch 0.7
