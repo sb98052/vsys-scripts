@@ -1,0 +1,27 @@
+#!/usr/bin/perl
+
+use strict;
+
+my $slicename=$ARGV[0];
+my $slice_dir="/vservers/$slicename/";
+my $localpath = <STDIN>;
+
+chomp($localpath);
+$localpath=~s/\.\.//g;
+
+$localpath=$slice_dir.$localpath;
+
+unless (-d $localpath) {
+	die("Localpath does not exist, please create it first.");
+}
+
+unless($localpath=~/\/?[\w\d]+\/[\w\d]*\/?/) {
+    die("$localpath is not a path");
+}
+
+my $mntcmd="/bin/umount $localpath";
+system($mntcmd);
+
+if ($?) {
+    print "Mount failed: $?";
+}
