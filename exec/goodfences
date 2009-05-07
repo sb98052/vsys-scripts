@@ -26,6 +26,7 @@ my @ports;
 
 if ($#ports > 0) {
         system("cat /proc/$ports[1]/vinfo");
+        print "Please refer to http://planetflow.planet-lab.org/lookupslice.php to obtain the name corresponding to this slice.";
 }
 
 close CMD;
