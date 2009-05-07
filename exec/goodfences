@@ -1,0 +1,31 @@
+#!/usr/bin/perl
+
+use strict;
+
+$|=1;
+
+my $slicename;
+my $portnumber;
+
+
+$slicename = $ARGV[0];
+$portnumber = <STDIN>;
+
+chop($portnumber);
+
+if ($portnumber!~/^\d+$/) {
+        die("$portnumber is not a port number");
+}
+
+open CMD,"/sbin/fuser -n tcp $portnumber 2>&1|";
+
+$_ = <CMD>;
+
+my @ports;
+@ports=split;
+
+if ($#ports > 0) {
+        system("cat /proc/$ports[1]/vinfo");
+}
+
+close CMD;
