@@ -11,10 +11,6 @@ $localpath=~s/\.\.//g;
 
 $localpath=$slice_dir.$localpath;
 
-unless (-d $localpath) {
-	die("Localpath does not exist, please create it first.");
-}
-
 unless($localpath=~/\/?[\w\d]+\/[\w\d]*\/?/) {
     die("$localpath is not a path");
 }
