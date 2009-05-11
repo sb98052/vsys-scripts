@@ -8,7 +8,7 @@
 
 %define name vsys-scripts
 %define version 0.9
-%define taglevel 2
+%define taglevel 3
 
 %define release %{taglevel}%{?pldistro:.%{pldistro}}%{?date:.%{date}}
 
@@ -54,6 +54,9 @@ rm -rf $RPM_BUILD_ROOT
 %postun
 
 %changelog
+* Sun May 10 2009 Sapan Bhatia <sapanb@cs.princeton.edu> - vsys-scripts-0.9-3
+- Removed a check from umount for users to be able to unmount directories they managed to mess up with FUSE
+
 * Wed Apr 08 2009 Sapan Bhatia <sapanb@cs.princeton.edu> - vsys-scripts-0.9-2
 - Including the umount script needed to unmount fuse mounts
 
