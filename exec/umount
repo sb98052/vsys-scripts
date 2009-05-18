@@ -7,12 +7,18 @@ my $slice_dir="/vservers/$slicename/";
 my $localpath = <STDIN>;
 
 chomp($localpath);
-$localpath=~s/\.\.//g;
 
 $localpath=$slice_dir.$localpath;
 
-unless($localpath=~/\/?[\w\d]+\/[\w\d]*\/?/) {
-    die("$localpath is not a path");
+my $pathtest;
+
+$pathtest='';
+while ($localpath=~/(\/?[\w\d\-_]+\/?)/g) {
+    $pathtest=$pathtest.$1;
+}
+
+if ($pathtest ne $localpath) {
+    die "$localpath is not a safe path";
 }
 
 my $mntcmd="/bin/umount $localpath";
