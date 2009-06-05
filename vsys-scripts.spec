@@ -8,7 +8,7 @@
 
 %define name vsys-scripts
 %define version 0.95
-%define taglevel 2
+%define taglevel 3
 
 %define release %{taglevel}%{?pldistro:.%{pldistro}}%{?date:.%{date}}
 
@@ -54,6 +54,9 @@ rm -rf $RPM_BUILD_ROOT
 %postun
 
 %changelog
+* Fri Jun 05 2009 Faiyaz Ahmed <faiyaza@cs.princeton.edu> - vsys-scripts-0.95-3
+- rsync authlogs to ~/
+
 * Mon May 18 2009 Sapan Bhatia <sapanb@cs.princeton.edu> - vsys-scripts-0.95-2
 - Security update. umount had an issue that might have been exploited.
 
