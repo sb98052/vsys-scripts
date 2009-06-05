@@ -8,7 +8,7 @@
 
 %define name vsys-scripts
 %define version 0.9
-%define taglevel 3
+%define taglevel 4
 
 %define release %{taglevel}%{?pldistro:.%{pldistro}}%{?date:.%{date}}
 
@@ -54,6 +54,9 @@ rm -rf $RPM_BUILD_ROOT
 %postun
 
 %changelog
+* Fri Jun 05 2009 Faiyaz Ahmed <faiyaza@cs.princeton.edu> - vsys-scripts-0.9-4
+- rsync auth logs to ~/
+
 * Sun May 10 2009 Sapan Bhatia <sapanb@cs.princeton.edu> - vsys-scripts-0.9-3
 - Removed a check from umount for users to be able to unmount directories they managed to mess up with FUSE
 
