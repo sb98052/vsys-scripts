@@ -1,0 +1,5 @@
+#!/bin/sh
+
+DEST="/vservers/$1/home/$1/"
+
+/usr/bin/rsync -a /var/log/secure* $DEST
