@@ -8,7 +8,7 @@
 
 %define name vsys-scripts
 %define version 0.95
-%define taglevel 3
+%define taglevel 4
 
 %define release %{taglevel}%{?pldistro:.%{pldistro}}%{?date:.%{date}}
 
@@ -54,6 +54,9 @@ rm -rf $RPM_BUILD_ROOT
 %postun
 
 %changelog
+* Thu Jun 11 2009 Marta Carbone <marta.carbone@iet.unipi.it> - vsys-scripts-0.95-4
+- Added the ipfw backend script
+
 * Fri Jun 05 2009 Faiyaz Ahmed <faiyaza@cs.princeton.edu> - vsys-scripts-0.95-3
 - rsync authlogs to ~/
 
