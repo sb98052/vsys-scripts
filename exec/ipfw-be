@@ -64,9 +64,9 @@ add_rules() { # $1 timeout value
         EXPIRE=`date --date="${TIMEOUT}" +%s`
         [ x"${EXPIRE}" = x"" ] && abort "Date format $1 not valid"
 
-	# prepend the profile name with the vserver directory
-	echo ${CONFIG_STRING} | ${SED} -e "s/ profile \(.[^ ]\)/ profile \/vservers\/${SLICE}\/\1/g"
-	#
+	# move in the slice root dir
+	cd /vservers/${SLICE}/root
+	#echo ${CONFIG_STRING} | ${SED} -e "s/ profile \(.[^ ]\)/ profile \/vservers\/${SLICE}\/\1/g"
 
         # check syntax, if ok execute
         # add rules
@@ -127,6 +127,19 @@ process()
 
 	debug "Received from the input pipe: $1"
 
+	# allow netconfig ipfw show
+	# allow netconfig pipe show
+
+	CMD=`echo $1 | cut -d\  -f 1`
+	if [ x${CMD} == x"ipfw" ]; then
+		ipfw show
+		return 0
+	else if [ x${CMD} == x"pipe" ]; then
+		ipfw pipe show
+		return 0
+	fi
+	fi
+
 	ARGS=`echo $1 | wc -w`
 	if [ $ARGS -le 3 ]; then
 		abort "One or more input parameter is missing"
@@ -151,7 +164,6 @@ process()
 	PIPE_N=${PORT}
 	RULE_N=${PORT}
 
-	return 0
 	# check if the link is already configured
 	ipfw list ${PORT} 2>&1
 
@@ -182,7 +194,6 @@ process()
 	for i in `/usr/bin/seq 0 $((${#requests[*]} - 1))`
 	do
 		process "${requests[$i]}"
-		add_rules
 	done
 
 	# delete the lock
