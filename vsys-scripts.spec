@@ -8,7 +8,7 @@
 
 %define name vsys-scripts
 %define version 0.95
-%define taglevel 4
+%define taglevel 5
 
 %define release %{taglevel}%{?pldistro:.%{pldistro}}%{?date:.%{date}}
 
@@ -54,6 +54,9 @@ rm -rf $RPM_BUILD_ROOT
 %postun
 
 %changelog
+* Tue Jul 07 2009 Thierry Parmentelat <thierry.parmentelat@sophia.inria.fr> - vsys-scripts-0.95-5
+- tweak in ipfw-be for in-node emulation
+
 * Thu Jun 11 2009 Thierry Parmentelat <thierry.parmentelat@sophia.inria.fr> - vsys-scripts-0.95-4
 - Added the ipfw backend script
 
