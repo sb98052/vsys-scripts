@@ -3,7 +3,7 @@
 #
 # RPM spec file
 #
-# $Id: vsys-scripts.spec 9786 2008-07-02 08:54:09Z thierry $
+# $Id$
 #
 
 %define name vsys-scripts

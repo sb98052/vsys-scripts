@@ -3,10 +3,10 @@
 #
 # RPM spec file
 #
-# $Id: vsys.spec 9786 2008-07-02 08:54:09Z thierry $
+# $Id$
 #
 
-%define url $URL: svn+ssh://sapanb@poppins/svn/vsys/trunk/vsys.spec $
+%define url $URL$
 
 %define name vsys
 %define version 0.8
