@@ -1,0 +1,61 @@
+#!/usr/bin/perl
+
+use strict;
+
+$|=1;
+
+my $slicename;
+my $xid;
+my $portnumber;
+my $fuser_cmd;
+my $pid;
+my @vinfo;
+my $foo;
+my $real_xid;
+
+$slicename = $ARGV[0];
+$xid = int(`id -u $slicename`) || die("Could not determine xid of $slicename\n");
+$portnumber = <STDIN>;
+chop($portnumber);
+
+if ($portnumber!~/^\d+$/) {
+        die("$portnumber is not a port number");
+}
+
+if ($portnumber<61001 || $portnumber>65535) {
+	die("$portnumber lies in the local port-rover range\n");
+}
+
+$fuser_cmd = "ncontext --nid $xid --migrate -- vcontext --xid $xid --migrate fuser -n udp $portnumber 2>/dev/null";
+$pid = `$fuser_cmd` || die("Please bind to port $portnumber, e.g. run nc -ul $portnumber."); 
+$pid=~s/\s+//g;
+
+my $cat_cmd;
+
+$cat_cmd = "chcontext --ctx 1 cat /proc/$pid/vinfo";
+$_ = `$cat_cmd`;
+@vinfo = split /\n/;
+($#vinfo>0) || die("Port reservation failed. Please try again.\n");
+
+$_=@vinfo[0];
+
+($foo,$real_xid) = split;
+
+if (int($real_xid)!=$xid) {
+    die("Port $portnumber belongs to user $real_xid, not to you.\n"); 
+}
+
+# OK. We're good
+# Only, slices are allowed only 1 port reservation/session
+
+if ( -f "/dev/shm/$slicename-port" ) {
+	print "You have already reserved the following port:\n";
+	system("cat /dev/shm/$slicename-port");
+	exit(1);
+}
+
+open FIL,">/dev/shm/$slicename-port";
+print FIL "$portnumber";
+close FIL;
+
+system("iptables -t mangle -A INPUT -m udp -p udp --dport $portnumber -j MARK --set-mark $xid");
