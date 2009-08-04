@@ -1,0 +1,42 @@
+#!/usr/bin/perl
+
+use strict;
+
+$|=1;
+
+my $slicename;
+my $xid;
+my $portnumber;
+my $fuser_cmd;
+my $pid;
+my @vinfo;
+my $foo;
+my $real_xid;
+my $cat_cmd;
+
+$slicename = $ARGV[0];
+$xid = int(`id -u $slicename`) || die("Could not determine xid of $slicename\n");
+$portnumber = <STDIN>;
+chop($portnumber);
+
+if ($portnumber!~/^\d+$/) {
+        die("$portnumber is not a port number");
+}
+
+$fuser_cmd = "ncontext --nid $xid --migrate -- vcontext --xid $xid --migrate fuser -n tcp $portnumber";
+$pid = `$fuser_cmd` || die("Please bind to port $portnumber, e.g. run nc -l $portnumber."); 
+
+$cat_cmd = "cat /proc/$pid/vinfo";
+$_ = `$cat_cmd`;
+@vinfo = split /\n/;
+($#vinfo>0) || die("Port reservation failed. Please try again.\n");
+
+$_=@vinfo[0];
+
+($foo,$real_xid) = split;
+
+if (int($real_xid)!=$xid) {
+    die("Port $portnumber belongs to user $real_xid, not to you.\n"); 
+}
+
+close CMD;
