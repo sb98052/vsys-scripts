@@ -8,7 +8,7 @@
 
 %define name vsys-scripts
 %define version 0.95
-%define taglevel 5
+%define taglevel 6
 
 %define release %{taglevel}%{?pldistro:.%{pldistro}}%{?date:.%{date}}
 
@@ -54,6 +54,9 @@ rm -rf $RPM_BUILD_ROOT
 %postun
 
 %changelog
+* Mon Aug 03 2009 Sapan Bhatia <sapanb@cs.princeton.edu> - vsys-scripts-0.95-6
+- Added reserve_tcp_port and Giovanni's slice_ip tool.
+
 * Tue Jul 07 2009 Thierry Parmentelat <thierry.parmentelat@sophia.inria.fr> - vsys-scripts-0.95-5
 - tweak in ipfw-be for in-node emulation
 
