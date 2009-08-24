@@ -56,8 +56,14 @@ filter() { # $* variables to be filtered
 # We use the PORT number to configure the
 # pipe, and add rules for that port.
 # The default directory is the slicename root
-add_rules() { # $1 timeout value
+add_rules() { # $1 timeout value $2 delete
         local EXPIRE
+
+	debug "Add a new rule, check for deletion flag";
+	if [ ${2} -eq 1 ]; then
+		#echo "Rules and pipes deleted";
+		return;
+	fi
 
 	debug "Add a new rule"
         # schedule the rule deletion
@@ -74,14 +80,14 @@ add_rules() { # $1 timeout value
         local ERROR=0
 
         [ $ERROR -eq 0 ] && \
-                ${IPFW_CHECK} add ${RULE_N} pipe ${PIPE_N} ip from me to any src-port ${PORT} // ${EXPIRE} ${SLICE}
+                ${IPFW_CHECK} add ${RULE_N} pipe ${PIPE_N} ip from ${ME} to any src-port ${PORT} // ${EXPIRE} ${SLICE}
         let "ERROR += $?"
         [ $ERROR -eq 0 ] && \
-                ${IPFW_CHECK} add ${RULE_N} pipe ${PIPE_N} ip from any to me dst-port ${PORT}
+                ${IPFW_CHECK} add ${RULE_N} pipe ${PIPE_N} ip from any to ${ME} dst-port ${PORT}
 
         let "ERROR += $?"
         [ $ERROR -eq 0 ] && \
-                ${IPFW_CHECK} pipe ${PIPE_N} config ${PARSED_CONFIGURATION}
+                ${IPFW_CHECK} pipe ${PIPE_N} config ${CONFIG_STRING}
 
         if [ ! $ERROR -eq 0 ]; then
                 echo "Some errors occurred not executing"
@@ -89,11 +95,11 @@ add_rules() { # $1 timeout value
         fi
 
         # add rules
-        ${IPFW} add ${RULE_N} pipe ${PIPE_N} ip from me to any src-port ${PORT} // ${EXPIRE} ${SLICE}
-        ${IPFW} add ${RULE_N} pipe ${PIPE_N} ip from any to me dst-port ${PORT}
+        ${IPFW} add ${RULE_N} pipe ${PIPE_N} ip from ${ME} to any src-port ${PORT} // ${EXPIRE} ${SLICE}
+        ${IPFW} add ${RULE_N} pipe ${PIPE_N} ip from any to ${ME} dst-port ${PORT}
 
         # config pipe
-        ${IPFW} pipe ${PIPE_N} config ${PARSED_CONFIGURATION}
+        ${IPFW} pipe ${PIPE_N} config ${CONFIG_STRING}
 }
 
 # Delete a given link
@@ -114,13 +120,17 @@ modify_rule()
 		debug "The rule already exist, the owner match, delete old rule"
                 echo "Owner match"
                 delete_link
-                add_rules ${TIMEOUT}
+		add_rules ${TIMEOUT} ${DELETE}
         else
                 user_error "the rule already exist, ant you are not the slice owner, try later"
         fi
 }
 
-# process a single line of input, a request
+# process a single line of input
+# this line has the following format:
+# ipfw
+# pipe
+# port timeout configuration_string
 process()
 {
 	local TMP;		# temporary var
@@ -141,7 +151,7 @@ process()
 	fi
 
 	ARGS=`echo $1 | wc -w`
-	if [ $ARGS -le 3 ]; then
+	if [ $ARGS -le 2 ]; then
 		abort "One or more input parameter is missing"
 	fi
 
@@ -150,12 +160,18 @@ process()
 	PORT=`filter $TMP`
 	TMP=`echo $1 | cut -d\  -f 2`
 	TIMEOUT=`filter $TMP`
-	TMP=`echo $1 | cut -d\  -f 3-`
+	TMP=`echo $1 | cut -d\  -f 3`
+	DELETE=`filter $TMP`
+	TMP=`echo $1 | cut -d\  -f 4-`
 	CONFIG_STRING=`filter $TMP`
 
 	debug "PORT: $PORT"
+	debug "DELETE: $DELETE"
 	debug "TIMEOUT: $TIMEOUT"
 	debug "configuration string: $CONFIG_STRING"
+
+	# find the ip address
+	ME=`/sbin/ip -o addr show | grep -v "1:\ lo" | grep "inet " | cut -d " " -f7 | cut -d "/" -f1 | head -n1`
 
 	# deny port <= 1024
 	[ ${PORT} -le 1024 ] && user_error "it is not allowed to modify the port range [0-1024]"
@@ -168,7 +184,7 @@ process()
 	ipfw list ${PORT} 2>&1
 
 	if [ x"$?" != x"0" ]; then	# new rule, add and set owner/timeout
-		add_rules
+		add_rules ${TIMEOUT} ${DELETE}
 	else				# the rule already exist, check owner
 		modify_rule
 	fi
@@ -177,6 +193,7 @@ process()
 
 # main starts here
 
+	debug "Debug activated"
 	requests=[]
 	i=0
 
