@@ -10,8 +10,8 @@
 # The routing rules added to these routing 
 # tables affect only the respective slices.  
 #
-# This script is meant to be called from a
-# fronted script in the slice environment. 
+# This script is meant to be called from a 
+# frontend script in the slice environment. 
 #
 # Fronted usage:
 # sliceip enable <interface> 
@@ -83,12 +83,13 @@ function enable_interface(){ # $1 calling sliver; $2 interface to enable
 		return 1
 	fi
 
-	local nid=`get_nid $sliver`
+	#create the sliceip netfilter chains
+	check_chains
 
+	local nid=`get_nid $sliver`
 	local num_active=`get_num_activated $sliver`
 
 	if ! is_active $sliver $interface; then
-
 		if [[ $num_active == 0 ]]; then
 				#define the routing table for the slice and set some iptables rules in order to mark user's packets;			
 				create_table $sliver
@@ -99,19 +100,18 @@ function enable_interface(){ # $1 calling sliver; $2 interface to enable
 		#of the main routing table); when the rerouting process happens (following the user/slice specific rules) 
 	  	#the source address is not modified. Consequently, we need to add this rule to change the source ip address 
 		#to the $interface source address.
-	 	exec "iptables -t nat -A POSTROUTING -o $interface -j SNAT --to-source $ip -m mark --mark $nid"
+	 	exec "iptables -t nat -A $NAT_POSTROUTING -o $interface -j SNAT --to-source $ip -m mark --mark $nid"
 
 		set_active $sliver $interface $ip		
-
 	else
 		local old_ip=`get_ip_from_file $sliver $interface`
 	
+		#if the ip of the interface has changed, set the new SNAT rule
 		if [[ $old_ip != $ip ]]; then
 			#remove the rule for the old ip
-			exec "iptables -t nat -D POSTROUTING -o $interface -j SNAT --to-source $old_ip -m mark --mark $nid"
+			exec "iptables -t nat -D $NAT_POSTROUTING -o $interface -j SNAT --to-source $old_ip -m mark --mark $nid"
 			#insert the new rule			
-			exec "iptables -t nat -A POSTROUTING -o $interface -j SNAT --to-source $ip -m mark --mark $nid"	
-
+			exec "iptables -t nat -A $NAT_POSTROUTING -o $interface -j SNAT --to-source $ip -m mark --mark $nid"	
 			set_deactivated $sliver $interface $old_ip
 			set_active $sliver $interface $ip
 		fi
@@ -125,20 +125,17 @@ function enable_interface(){ # $1 calling sliver; $2 interface to enable
 function disable_interface(){
 	local sliver=$1
 	local interface=$2
-
 	local ip=`get_ip_from_file $sliver $interface`	
-	
 	local nid=`get_nid $sliver`
 
 	if is_active $sliver $interface >/dev/null 2>&1; then
-		exec "iptables -t nat -D POSTROUTING -o $interface -j SNAT --to-source $ip -m mark --mark $nid"
-
+		exec "iptables -t nat -D $NAT_POSTROUTING -o $interface -j SNAT --to-source $ip -m mark --mark $nid"
+		
 		local num_ifn_on=`get_num_activated $sliver`
 		
 		if [[ $num_ifn_on == 1 ]]; then
 			delete_table $sliver
 		fi
-
 		set_deactivated $sliver $interface
 	fi
 
@@ -154,17 +151,15 @@ function exec(){
 	else
 		if ! $command; then
 			if [[ $DEBUG == 1 ]]; then echo "Error executing \"$1\""; fi
-			echo EOF			
 			exit 1
 		fi
 	fi
 
 }
 
-# decides wich id to use for the slice routing table
+# decides wich id to use for the slice-specific routing table
 function get_table_id(){
 	local sliver=$1
-
 	k=$FIRST_TABLE
 
 	while [[ $k < 255 ]] && grep $k $RT_TABLES >/dev/null 2>&1 ; do
@@ -183,14 +178,13 @@ function get_table_id(){
 # create the slice-specifig routing table
 function create_table(){
 	local sliver=$1
-
 	local table_name=`get_table_name $sliver`
 	local table_id=`get_table_id $sliver`	
 	local temp_nid=`get_temp_nid $sliver`
 
 	if ! grep $table_name $RT_TABLES > /dev/null 2>&1; then
 		echo "$table_id $table_name" >> $RT_TABLES
-  else
+  	else
 		echo "WARNING: $table_name routing table already defined."
 	fi
 
@@ -202,7 +196,6 @@ function create_table(){
 # delete the slice-specific routing table
 function delete_table(){
 	local sliver=$1
-
 	local table_name=`get_table_name $sliver`
 	local table_id=`get_nid $sliver`	
 	local temp_nid=`get_temp_nid $sliver`
@@ -224,11 +217,7 @@ function remove_line(){
 	local regex=$2
 
 	#remove interface line from the file
-	
-	exec "sed /${regex}/d $filename" > $filename.tmp
-	exec "mv $filename.tmp $filename"
-	
-
+	exec "sed -i /${regex}/d $filename"
 }
 
 # get the slice-specific routing table name
@@ -237,12 +226,13 @@ function get_table_name(){
 	echo "${sliver}_slcip"
 }
 
+#remove files used by sliceip and the added routing tables 
 function clean_iproute_conf(){
 	while grep "slcip" $RT_TABLES >/dev/null 2>&1; do
 		remove_line $RT_TABLES "slcip"
 	done
 
-	rm ${INT_FILE}*
+	rm -f ${INT_FILE}-*
 
 }
 
@@ -256,7 +246,6 @@ function get_nid(){
 function set_routes(){
 	local sliver=$1
 	local table_name=$2
-
 	local sliver_nid=`get_nid $sliver`
 	local temp_nid=`get_temp_nid $sliver`
 
@@ -265,18 +254,27 @@ function set_routes(){
 		#if it sees that the netfilter mark has been altered in the iptables mangle chain.
 		#As VNET+ sets the netfilter mark of some packets in advance (to the slice-id value) before they enter the iptables mangle chain, 
 		#we need to change it here (otherwise the rerouting process is not triggered for them).
-		exec "iptables -t mangle -A OUTPUT -m mark --mark $sliver_nid -j MARK --set-mark $temp_nid"
+		exec "iptables -t mangle -I $MANGLE_OUTPUT 1 -m mark --mark $sliver_nid -j MARK --set-mark $temp_nid"
+
+		#make sure the netfilter mark of those "strange packets" won't be changed by the following rule
+		exec "iptables -t mangle -I $MANGLE_OUTPUT 2 -m mark --mark $temp_nid -j RETURN"
 
 		#Here we ask VNET+ to set the netfilter mark for the remaining packets (to the slice-id) 
-		exec "iptables -t mangle -A OUTPUT -j MARK -m mark ! --mark $temp_nid --copy-xid 0x00"
+		#we need to call this only once
+		if [[ $first_time == 1 ]]; then
+			exec "iptables -t mangle -A $MANGLE_OUTPUT -j MARK --copy-xid 0x00"
+		fi		
+
 	elif [ $ENVIRONMENT == $LINUX_ENV ]; then
 		#the same in the case of a "plain" Linux box. In this case we do not use VNET+ but
 		#the owner module of iptables.
-		exec "iptables -t mangle -A OUTPUT -m owner --uid-owner $sliver_nid -j MARK --set-mark $sliver_nid"
+		exec "iptables -t mangle -A $MANGLE_OUTPUT -m owner --uid-owner $sliver_nid -j MARK --set-mark $sliver_nid"
 	fi
-	
-	#Here the netfilter mark is restored to the slice-id value for the "strange packets"
-	exec "iptables -t mangle -I POSTROUTING 1 -m mark --mark $temp_nid -j MARK --set-mark $sliver_nid"
+
+	if [ $ENVIRONMENT == $PLANET_ENV ]; then	
+		#Here the netfilter mark is restored to the slice-id value for the "strange packets"
+		exec "iptables -t mangle -A $MANGLE_POSTROUTING -m mark --mark $temp_nid -j MARK --set-mark $sliver_nid"
+	fi
 
 	#Set the routing for the slice to be applied following the rules in $table_name"
 	#for the slice packets...
@@ -287,32 +285,62 @@ function set_routes(){
 	exec "ip route flush cache"  >/dev/null 2>&1
 }
 
-# removes the firewall rules. 
+
+# remove the firewall rules. 
 function unset_routes(){
 	local sliver=$1
 	local table_name=$2
-
 	local sliver_nid=`get_nid $sliver`
 	local temp_nid=`get_temp_nid $sliver`
 	
 	if [ $ENVIRONMENT == $PLANET_ENV ]; then	 
 		#removes the rules for the netfilter marks (for the "strange packets")
-		exec "iptables -t mangle -D OUTPUT -m mark --mark $sliver_nid -j MARK --set-mark $temp_nid"
+		exec "iptables -t mangle -D $MANGLE_OUTPUT -m mark --mark $sliver_nid -j MARK --set-mark $temp_nid"
+		exec "iptables -t mangle -D $MANGLE_OUTPUT -m mark --mark $temp_nid -j RETURN"
+		
+		#removes the rule for restoring the original mark
+		exec "iptables -t mangle -D $MANGLE_POSTROUTING -m mark --mark $temp_nid -j MARK --set-mark $sliver_nid"
 
-		#removes the rules that asks VNET+ to set the netfilter mark to the slice-id		
-		exec "iptables -t mangle -D OUTPUT -m mark ! --mark $temp_nid -j MARK --copy-xid 0x00"
 	elif [ $ENVIRONMENT == $LINUX_ENV ]; then
 		#removes the rules that asks the owner module of iptables to set the netfilter mark to the user-id
-		exec "iptables -t mangle -D OUTPUT -m owner --uid-owner $sliver_nid -j MARK --set-mark $sliver_nid"
+		exec "iptables -t mangle -D $MANGLE_OUTPUT -m owner --uid-owner $sliver_nid -j MARK --set-mark $sliver_nid"
 	fi
-
-	exec "iptables -t mangle -D POSTROUTING -m mark --mark $temp_nid -j MARK --set-mark $sliver_nid"
 
   	exec "ip rule del fwmark $temp_nid table $table_name"
 	exec "ip rule del fwmark $sliver_nid table $table_name"	
 
 	exec "ip route flush cache"
 
+}
+
+# additional iptables chains where sliceip inserts its rules
+NAT_POSTROUTING="sliceip"
+MANGLE_OUTPUT="sliceip_output"
+MANGLE_POSTROUTING="sliceip_postrouting"
+
+# create the chains
+check_chains(){
+	first_time=0
+
+	#create the chain where SNAT is performed
+	if iptables -t nat -N $NAT_POSTROUTING >/dev/null 2>&1; then
+		#it's the first time sliceip is called, the chain was not defined		
+		first_time=1		
+		
+		#create a chain where the netfilter mark is set
+		exec "iptables -t mangle -N $MANGLE_OUTPUT"
+
+		#create a chain where the netfilter mark for some packets is restored (see set_routes)
+		exec "iptables -t mangle -N $MANGLE_POSTROUTING"
+
+		#add the rules to take packets to the previously defined chains
+		exec "iptables -t nat -A POSTROUTING -j $NAT_POSTROUTING"		
+		exec "iptables -t mangle -A OUTPUT -j $MANGLE_OUTPUT"
+		exec "iptables -t mangle -I POSTROUTING 1 -j $MANGLE_POSTROUTING"
+
+		#cleaning up
+		clean_iproute_conf
+	fi
 }
 
 # get the ip address of an interface
@@ -330,7 +358,7 @@ function get_address(){
 			
 }
 
-# get the temporary mark to be applied to the slice packets
+# get the temporary mark to be applied to the packets of the slice
 function get_temp_nid(){
 	local sliver_nid=`get_nid $1`
 	local temp_nid=$((0x20000+$sliver_nid))
@@ -353,28 +381,21 @@ function set_active(){
 	local sliver=$1
 	local interface=$2
 	local ip=$3
-
   	local filename="${INT_FILE}-$sliver"
-
 	echo "$interface $ip" >> $filename
-	
 }
 
 function set_deactivated(){
-
 	local sliver=$1
 	local interface=$2
-
   	local filename=`get_filename_sliver $sliver`
-
 	remove_line $filename $interface
 }
 
 function is_active(){
 	local sliver=$1
 	local interface=$2
-
-  local filename=`get_filename_sliver $sliver`
+  	local filename=`get_filename_sliver $sliver`
 
 	if grep $interface $filename >/dev/null 2>&1; then
 		return 0
@@ -385,8 +406,7 @@ function is_active(){
 
 function get_num_activated(){
 	local sliver=$1
-
-  local filename=`get_filename_sliver $sliver`
+	local filename=`get_filename_sliver $sliver`
 
 	if ! [ -e $filename ]; then
 		echo 0;
@@ -406,8 +426,7 @@ function get_ip_from_file(){
 }
 
 
-
-# checks ip addresses  
+# check ip addresses  
 function valid_dotted_quad(){
     oldIFS=$IFS
     IFS=.
@@ -442,37 +461,36 @@ fi
 # read a line from the vsys pipe
 read line
 
-# separates the first word of the line from the others
+# separate the first word of the line from the others
 command=`echo ${line%% *}`
 rest=`echo ${line#* }`
 
 case "$command" in
   enable)
-	logger "slcip command received from $sliver: $line"	
+	logger "sliceip command received from $sliver: $line"	
 	enable_interface $sliver "$rest"
 	;;
 
   disable)
-	logger "slcip command received from $sliver: $line"	
+	logger "sliceip command received from $sliver: $line"	
 	disable_interface $sliver "$rest"
 	;;
 
   *)
-	logger "slcip command received from $sliver: $line"
+	logger "sliceip command received from $sliver: $line"
   	table_sliver=`get_table_name $sliver`
 
-	# adds the rule
 	if ! grep "$table_sliver" $RT_TABLES >/dev/null 2>&1; then
 		echo "Error. The slice routing table is not defined. Execute sliceip enable <interface>."
+		exit 1
 	else 
+		#add the routing rule - ip is called with the same parameters of sliceip but the indication of 
+		#the table in wich the rule is to be inserted is appended		
 		exec "ip $line table $table_sliver"
 	fi  
 	;;
 
 esac
-
-# make the frontend quit
-echo "EOF"
 
 exit 0
 
