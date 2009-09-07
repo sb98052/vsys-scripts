@@ -8,7 +8,7 @@
 
 %define name vsys-scripts
 %define version 0.95
-%define taglevel 6
+%define taglevel 7
 
 %define release %{taglevel}%{?pldistro:.%{pldistro}}%{?date:.%{date}}
 
@@ -54,6 +54,9 @@ rm -rf $RPM_BUILD_ROOT
 %postun
 
 %changelog
+* Mon Sep 07 2009 Thierry Parmentelat <thierry.parmentelat@sophia.inria.fr> - vsys-scripts-0.95-7
+- minor changes in sliceip and ipfw, new reserve_udp_port
+
 * Mon Aug 03 2009 Sapan Bhatia <sapanb@cs.princeton.edu> - vsys-scripts-0.95-6
 - Added reserve_tcp_port and Giovanni's slice_ip tool.
 
