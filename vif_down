@@ -1,0 +1,47 @@
+#!/usr/bin/python
+# VSYS script to ifdown per-slice virtual network interfaces from the root slice
+#   Thom Haddow - 06/10/09
+#
+# Gets slice name as argv[1]
+# Takes remaining args on stdin:
+#   - Interface name (eg [tun|tap]<sliceid>-<n>)
+
+import sys
+import pwd
+import os
+import re
+
+
+if len(sys.argv) != 2: sys.exit(1)
+
+# VSYS scripts get slicename as $1
+slicename=sys.argv[1]
+sliceid = pwd.getpwnam(slicename).pw_uid
+
+
+# Read interface name
+vif = sys.stdin.readline().strip() # interface name
+
+
+# Validate interface name
+if len(vif)>16:
+    print >>sys.stderr, "Interface name %s invalid"%(vif)
+    sys.exit(1)
+
+if re.match(r'(tun|tap)%d-\d+' % sliceid, vif ) is None:
+    print >>sys.stderr, "Interface name %s does not match slice id %d."%(vif, sliceid)
+    sys.exit(1)
+
+
+
+# Bring interface down
+
+cmd_ifconfig = "/sbin/ifconfig %s down" % (vif)
+os.system(cmd_ifconfig)
+
+# Remove iptables rules
+cmd_iptables_del_in = "/sbin/iptables -D INPUT -i %s -m mark ! --mark %d -j DROP 2>/dev/null" % (vif, sliceid)
+cmd_iptables_del_out = "/sbin/iptables -D OUTPUT -o %s -m mark ! --mark %d -j DROP 2>/dev/null" % (vif, sliceid)
+
+os.system(cmd_iptables_del_in)
+os.system(cmd_iptables_del_out)
