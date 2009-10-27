@@ -1,0 +1,106 @@
+#!/usr/bin/python
+# VSYS script to configure per-slice virtual network interfaces from the root slice
+#   Thom Haddow - 06/10/09
+#
+# Gets slice name as argv[1]
+# Takes remaining args on stdin:
+#   - Interface name (eg [tun|tap]<sliceid>-<n>)
+#   - IP address (eg 1.2.3.4)
+#   - Netmask (as int, e.g. 24)
+
+import sys
+import pwd
+import re
+import socket
+import struct
+import os
+
+netblock_config="vnetblocks.conf"
+
+if len(sys.argv) != 2: sys.exit(1)
+
+# VSYS scripts get slicename as $1
+slicename=sys.argv[1]
+sliceid = pwd.getpwnam(slicename).pw_uid
+
+# Read netblock allocation file
+base = None
+
+for line in open(netblock_config,'r'):
+    if line.startswith('#'): continue # skip comments
+    slice, netblock = line.split()
+    if slice == slicename: # found slice's alloc
+        base, mask = netblock.split('/')
+        break
+
+if base is None:
+    print >>sys.stderr, "Could not find entry for slice %s in netblock config file %s" % (slicename, netblock_config)
+    sys.exit(1)
+
+
+### Read args from stdin
+vif = sys.stdin.readline().strip() # interface name
+vip = sys.stdin.readline().strip() # IP
+vmask = int(sys.stdin.readline().strip()) # netmask as int
+
+# TODO further config args? txqueue, nat? Can add these later...
+
+
+
+# Convert network base addr to int format by unpacking as 32bit net-ordered long (!L)
+base_int = struct.unpack('!L',socket.inet_aton(base))[0]
+mask = int(mask)
+
+
+### Validate args
+# Validate interface name
+if len(vif)>16:
+    print >>sys.stderr, "Interface name %s invalid"%(vif)
+    sys.exit(1)
+
+if re.match(r'(tun|tap)%d-\d+' % sliceid, vif ) is None:
+    print >>sys.stderr, "Interface name %s does not match slice id %d."%(vif, sliceid)
+    sys.exit(1)
+
+
+
+# Validate requested IP and convert to int format.
+try:
+    vip_int = struct.unpack('!L',socket.inet_aton(vip))[0]
+except socket.error:
+    print >>sys.stderr, "Invalid IP: %s" % vip
+    sys.exit(1)
+
+# Check IP is in netblock
+if (vip_int>>(32-mask)) != (base_int>>(32-mask)):
+    print >>sys.stderr, "Requested IP %s not in netblock %s/%d" % (vip,base,mask)
+    sys.exit(1)
+
+# TODO. Check IP is not in use?
+
+# Validate mask: Check requested mask is sane and within our netblock
+if vmask>32 or vmask <8:
+    print >>sys.stderr, "Requested netmask /%d is invalid" %(vmask)
+    sys.exit(1)
+    
+if vmask<mask:
+    print >>sys.stderr, "Requested netmask /%d larger than allocation /%d" %(vmask, mask)
+    sys.exit(1)
+
+
+
+### Configure interface
+
+cmd_ifconfig = "/sbin/ifconfig %s %s/%d" % (vif, vip, vmask)
+os.system(cmd_ifconfig)
+
+# Add iptables rules (Clearing old ones first, if they exist)
+cmd_iptables_in = "/sbin/iptables -A INPUT -i %s -m mark ! --mark %d -j DROP" % (vif, sliceid)
+cmd_iptables_del_in = "/sbin/iptables -D INPUT -i %s -m mark ! --mark %d -j DROP 2>/dev/null" % (vif, sliceid)
+cmd_iptables_out = "/sbin/iptables -A OUTPUT -o %s -m mark ! --mark %d -j DROP" % (vif, sliceid)
+cmd_iptables_del_out = "/sbin/iptables -D OUTPUT -o %s -m mark ! --mark %d -j DROP 2>/dev/null" % (vif, sliceid)
+
+os.system(cmd_iptables_del_in)
+os.system(cmd_iptables_in)
+os.system(cmd_iptables_del_out)
+os.system(cmd_iptables_out)
