@@ -8,7 +8,7 @@
 
 %define name vsys-scripts
 %define version 0.95
-%define taglevel 8
+%define taglevel 9
 
 %define release %{taglevel}%{?pldistro:.%{pldistro}}%{?date:.%{date}}
 
@@ -54,6 +54,9 @@ rm -rf $RPM_BUILD_ROOT
 %postun
 
 %changelog
+* Tue Oct 27 2009 Sapan Bhatia <sapanb@cs.princeton.edu> - vsys-scripts-0.95-9
+- This update adds Thom Haddow's custom tun/tap-device scripts.
+
 * Wed Sep 09 2009 Faiyaz Ahmed <faiyaza@cs.princeton.edu> - vsys-scripts-0.95-8
 - Added script to create UDP sockets instead of TCP sockets w/ big buffers
 
