@@ -8,7 +8,7 @@
 
 %define name vsys-scripts
 %define version 0.95
-%define taglevel 9
+%define taglevel 10
 
 %define release %{taglevel}%{?pldistro:.%{pldistro}}%{?date:.%{date}}
 
@@ -54,6 +54,9 @@ rm -rf $RPM_BUILD_ROOT
 %postun
 
 %changelog
+* Tue Oct 27 2009 Sapan Bhatia <sapanb@cs.princeton.edu> - vsys-scripts-0.95-10
+- Adds Thom Haddow's tun/tap changes. I omitted a change in my previous commit.
+
 * Tue Oct 27 2009 Sapan Bhatia <sapanb@cs.princeton.edu> - vsys-scripts-0.95-9
 - This update adds Thom Haddow's custom tun/tap-device scripts.
 
