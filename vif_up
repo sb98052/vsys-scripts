@@ -15,7 +15,7 @@ import socket
 import struct
 import os
 
-netblock_config="vnetblocks.conf"
+vsys_config_dir = "/etc/planetlab/vsys-attributes"
 
 if len(sys.argv) != 2: sys.exit(1)
 
@@ -23,15 +23,13 @@ if len(sys.argv) != 2: sys.exit(1)
 slicename=sys.argv[1]
 sliceid = pwd.getpwnam(slicename).pw_uid
 
+netblock_config=os.path.join(vsys_config_dir,slicename,"vsys_vnet")
+
 # Read netblock allocation file
 base = None
 
-for line in open(netblock_config,'r'):
-    if line.startswith('#'): continue # skip comments
-    slice, netblock = line.split()
-    if slice == slicename: # found slice's alloc
-        base, mask = netblock.split('/')
-        break
+for netblock in open(netblock_config,'r'):
+    base, mask = netblock.split('/')
 
 if base is None:
     print >>sys.stderr, "Could not find entry for slice %s in netblock config file %s" % (slicename, netblock_config)
