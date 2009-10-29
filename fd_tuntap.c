@@ -129,7 +129,7 @@ int main(int argc, char *argv[])
 
 
     /* Send tap_fd to slice */
-    //send_vif_fd(control_channel_fd, tap_fd, if_name);
+    send_vif_fd(control_channel_fd, tap_fd, if_name);
 
     return 0;
 }
