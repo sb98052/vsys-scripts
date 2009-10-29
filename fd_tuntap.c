@@ -106,8 +106,11 @@ int main(int argc, char *argv[])
 
     /* Open tun device */
     if( (tap_fd = open("/dev/stdtun", O_RDWR)) < 0 ) {
-        perror("ERROR: tun_alloc():open(/dev/stdtun)");
-        exit(-1);
+        system("modprobe tun");
+        if( (tap_fd = open("/dev/stdtun", O_RDWR)) < 0 ) {
+            perror("ERROR: tun_alloc():open(/dev/stdtun)");
+            exit(-1);
+        }
     }
 
 
