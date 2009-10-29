@@ -8,7 +8,7 @@
 
 %define name vsys-scripts
 %define version 0.95
-%define taglevel 10
+%define taglevel 11
 
 %define release %{taglevel}%{?pldistro:.%{pldistro}}%{?date:.%{date}}
 
@@ -54,6 +54,10 @@ rm -rf $RPM_BUILD_ROOT
 %postun
 
 %changelog
+* Wed Oct 28 2009 Sapan Bhatia <sapanb@cs.princeton.edu> - vsys-scripts-0.95-11
+- * Load the tun module if it is not already loaded
+- * Fixed a bug in fd_tuntap
+
 * Tue Oct 27 2009 Sapan Bhatia <sapanb@cs.princeton.edu> - vsys-scripts-0.95-10
 - Adds Thom Haddow's tun/tap changes. I omitted a change in my previous commit.
 
