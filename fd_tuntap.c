@@ -45,7 +45,7 @@ int send_vif_fd(int sock_fd, int vif_fd, char *vif_name)
 	msg.msg_flags = 0;
 
     /* Send the interface name as the iov */
-	vec.iov_base = &vif_name;
+	vec.iov_base = vif_name;
 	vec.iov_len = strlen(vif_name)+1;
 
 	while ((retval = sendmsg(sock_fd, &msg, 0)) == -1 && errno == EINTR);
