@@ -104,7 +104,6 @@ debug() { # $1 message to be displayed
 # if the first argument is -v, enable verbose mode
 set_verbose() {
     [ x"$1" = x"-v" -o x"$2" = x"-v" ] && VERBOSE=1
-    echo "in set_verbose have $VERBOSE $1"
 }
 set_test() {
     [ x"$1" = x"-q" -o x"$2" = x"-q" ] || return
@@ -489,7 +488,6 @@ debug "--- $0 START for $SLICENAME ---"
 
 # A request to the vsys backend is composed by a single line of input
 read REQ			# read one line, ignore the rest
-echo "read ${REQ}"
 set_verbose ${REQ}		# use inital -v if present
 set_test ${REQ}		# use inital -t if present
 REQ="`filter ${REQ}`"	# remove -v and -t and invalid chars
