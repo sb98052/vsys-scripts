@@ -213,7 +213,7 @@ add_rule() { # new_rule slice_id type arg rule pipe_base timeout
 
     [ "$TEST" = "1" ] && return
     # add to the database, at least to adjust the timeout
-    ( grep -v -- "^${slice_id} ${type} ${arg}" $DBFILE;  \
+    ( grep -v -- "^${slice_id} ${type} ${arg} " $DBFILE;  \
 	echo "${slice_id} ${type} ${arg} ${rule_base} ${pipe_base} ${timeout}" ) > ${DBFILE}.tmp
     mv ${DBFILE}.tmp ${DBFILE}
 }
@@ -238,7 +238,7 @@ do_delete() { # slice_id type arg
     echo "removed configuration $slice_id} ${type} ${arg}"
     [ "$TEST" = "1" ] && return
     # remove from the database
-    grep -v -- "^${slice_id} ${type} ${arg}" $DBFILE > ${DBFILE}.tmp
+    grep -v -- "^${slice_id} ${type} ${arg} " $DBFILE > ${DBFILE}.tmp
     mv ${DBFILE}.tmp ${DBFILE}
 }
 
