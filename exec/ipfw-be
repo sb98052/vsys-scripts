@@ -182,8 +182,8 @@ add_rule() { # new_rule slice_id type arg rule pipe_base timeout
 	    ;;
 	esac
 
-	rule_in="pipe ${pipe_in} in uid $slice_id ${rule_in}"
-	rule_out="pipe ${pipe_out} out uid $slice_id ${rule_out}"
+	rule_in="pipe ${pipe_in} in uid $slice_id ${rule_in} // $type $arg"
+	rule_out="pipe ${pipe_out} out uid $slice_id ${rule_out} // $type $arg"
 	${IPFW_CHECK} add ${rule_nr} $rule_in > /dev/null || \
 		abort "ipfw syntax error $rule_in"
 	${IPFW_CHECK} add ${rule_nr} $rule_out > /dev/null || \
@@ -235,7 +235,7 @@ do_delete() { # slice_id type arg
     $IPFW delete ${rule_nr}
     $IPFW pipe delete ${pipe_in}
     $IPFW pipe delete ${pipe_out}
-    echo "removed configuration $slice_id} ${type} ${arg}"
+    echo "removed configuration ${slice_id} ${type} ${arg}"
     [ "$TEST" = "1" ] && return
     # remove from the database
     grep -v -- "^${slice_id} ${type} ${arg} " $DBFILE > ${DBFILE}.tmp
