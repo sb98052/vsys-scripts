@@ -182,8 +182,8 @@ add_rule() { # new_rule slice_id type arg rule pipe_base timeout
 	    ;;
 	esac
 
-	rule_in="pipe ${pipe_in} in uid $slice_id ${rule_in} // $type $arg"
-	rule_out="pipe ${pipe_out} out uid $slice_id ${rule_out} // $type $arg"
+	rule_in="pipe ${pipe_in} in jail $slice_id ${rule_in} // $type $arg"
+	rule_out="pipe ${pipe_out} out jail $slice_id ${rule_out} // $type $arg"
 	${IPFW_CHECK} add ${rule_nr} $rule_in > /dev/null || \
 		abort "ipfw syntax error $rule_in"
 	${IPFW_CHECK} add ${rule_nr} $rule_out > /dev/null || \
@@ -351,7 +351,7 @@ process() {
 	do_release ${SLICE_ID} $type $args
 	;;
     x"show")
-	# XXX should filter on uid
+	# XXX should filter on jail
 	[ "$type" = "rules" ] && ${IPFW} show && return 0
 	[ "$type" = "pipes" ] && ${IPFW} pipe show && return 0
 	abort "'show' should be followed by {rules|pipes}"
