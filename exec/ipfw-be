@@ -240,6 +240,9 @@ do_delete() { # slice_id type arg
     # remove from the database
     grep -v -- "^${slice_id} ${type} ${arg} " $DBFILE > ${DBFILE}.tmp
     mv ${DBFILE}.tmp ${DBFILE}
+
+    # XXX if the use block is empty
+    # remove the table entry from ipfw and from the db
 }
 
 # called with the database file as input
@@ -416,6 +419,15 @@ do_config() { # slice_id timeout type arg PIPE_IN pipe_conf PIPE_OUT pipe_conf
     debug "PIPE_OUT: $CONFIG_PIPE_OUT"
     debug "-----------------------"
 
+    # XXX Search if there is a block already allocated to the slice_id
+    # if not present
+    # {
+    #    allocate the block;
+    #    update the db;
+    #    add table to ipfw;
+    # }
+    # Returns the slice base rule number
+
     # check if the link is already configured
     debug "Search for ${slice_id} ${type} ${arg}"
 
@@ -462,7 +474,50 @@ release_lock() {
     rm -f $lockfile
 }
 
-# ALLOCATION OF PIPES AND RULES
+# ALLOCATION OF RULES AND PIPES
+# The ruleset is structured as follows
+#	1...X-1	generic rules
+#	X	skipto tablearg jail 0-65535 lookup jail-table
+#	X+1..Y-1 ... other generic rules
+#	Y	allow ip from any to any
+#
+#	RULE_BASE <block of M entries for first user>
+#	RULE_BASE+M <block of M entry for second user ...>
+#	...
+#
+# Out of 64k rules, we allocate a block of M=50 consecutive
+# rules to each slice using emulation. Within this block,
+# each configuration uses one rule number and two pipes.
+#
+# Pipes are allocated starting from PIPE_BASE, a couple
+# of pipes for each configuration.
+#
+# DATABASE FORMAT
+# The database is stored on a file, and contains
+# one line per record with this general structure
+#	XID	TYPE	arg1	arg2	...
+# whitespace separates the fields. arg1, arg2, ...
+# have different meaning depending on the type.
+#
+# In the database we have the following records:
+# - one entry for each slice that has active emulation entries.
+#   For each of these slices we reserve a block of M ipfw rules
+#   starting at some RULE_BASE rule number.
+#   The database entry for this info has the form
+#	XID	TABLE	block_number
+#   where blocks are numbered sequentially from 1.
+#   The actual rule number is RULE_BASE + M*(block_number)
+#   (we don't care if we waste some rules)
+#
+# - one entry for each predefined config (CLIENT, SERVER, SERVICE).
+#   The database entry for this info has the form
+#	XID	{CLIENT|SERVER|SERVICE}	arg	rule_nr pipe_index
+#   rule_nr is the absolute rule number for this configuration
+#   (it must be within the block of M rules allocated to the slice)
+#   pipe_index is the index of the couple of pipes used for the
+#   configuration. pipe_index starts from 1.
+
+# ---OLD-START--
 # pipes are always allocated in pairs
 # rules are either individual or in groups of size NUM_RULES (e.g. 4)
 # and are allocated in two different parts of the rule namespace
