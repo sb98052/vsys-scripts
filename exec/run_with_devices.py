@@ -42,7 +42,15 @@ if (pid):
     args = [slicename]
     args += ['exec']
     args += [command_name]
-    os.execve(vserver_command, args)
+
+    os.system('touch /etc/vservers/%s/spaces/net'%slicename)
+
+    try:    
+        os.execve(vserver_command, args)
+    except:
+        pass
+
+    os.system('rm /etc/vservers/%s/spaces/net'%slicename)
 else:
     for vif in device_names:
         os.system('/sbin/ip link set %s netns %d'%(vif, pid))
