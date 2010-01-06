@@ -14,9 +14,10 @@
 # Configurable variables are at the beginning
 
 # If HOOK is set the program is called before configuring a rule.
-# A sample hook can be found in the ipfw.rpm package
+# A sample hook can be found in the ipfwroot.rpm package,
+# it can be used to collect statistical information on dummynet usage.
+# To configure an hook, set the HOOK variable as follow:
 # HOOK=/tmp/sample_hook
-# XXX HOOK=""
 
 # You should not touch anything below.
 
@@ -68,27 +69,47 @@ TEST=0		# set to 1 for test mode
 DBFILE=/tmp/ff
 lockfile=/var/lock/ipfw.lock
 
-# There values are the keys used in the database for rules and pipes
-# rule_nr 1..10000 are mapped to rules 10000..49999 (n*4+9996)
-# rule_nr 10001..20000 are mapped to rules 50000..59999 (n+39999)
-# pipe_nr 1..25000 are mapped to pipes 10000-59999 (n*2+9998)
-RULE_BL_MIN=1
-RULE_BL_MAX=10000
-RULE_IN_MIN=10001
-RULE_IN_MAX=20000
+# These values are the keys used in the database for blocks,
+# rules and pipes
+# The index rule numbers allocated to a slice can be computed
+# with the following formula:
+#	index_min_rule = $(($RULE_BASE + $(($M*$block_n))))
+# where block_n is the block number associated with the slice
+# and M is the block size.
+BLOCK_MIN=1
+BLOCK_MAX=1000
+M=50		# block size
+RULE_BASE=10001 # the hightest rule is RULE_BASE + (M*BLOCK_MAX)
 PIPE_MIN=1
 PIPE_MAX=25000
-# These are the rule numbers used in ipfw
+# These are the actual rule numbers used in ipfw
 IPFW_RULE_MIN=10000
 IPFW_RULE_MAX=59999
 IPFW_PIPE_MIN=10000
 IPFW_PIPE_MAX=59999
+# The mapping between keys and ipfw configuration number follow:
+# rule_nr 10001..20000 are mapped to ipfw_rules 50000..59999 (n+39999)
+# pipe_nr 1..25000 are mapped to ipfw_pipes 10000-59999 (n*2+9998)
+# Rule index can be mapped to ipfw rules with the following formula:
+#	ipfw_rule = $(($index_rule + 39999))
+# Pipes index can be mapped to ipfw pipes with:
+#	ipfw_pipein = $(($index_pipe + $index_pipe + 9998))
+#	ipfw_pipeout = $(($ipfw_pipein + $1))
+#
+# the skipto and the generic default rule
+# these values are used to initialize the firewall
+SLICE_TABLE=1		# table number used for slice ids lookup
+S=1000			# firewall rule number for the skipto rule
+D=2000			# default rule for reserved section
 
 # set slicename and slice_id
-# there represents the credential of the user
+# these are the credential of the user invoking the backend
 SLICENAME=$1
-SLICE_ID=`id -u $SLICENAME`
-[ $? != 0 ] && abort "Invalid slicename $SLICENAME"
+if [ $SLICENAME = 0 ]; then
+	SLICE_ID=0
+else
+	SLICE_ID=`id -u $SLICENAME`
+fi
 
 # programs
 # XXX check consistency for variables {}
@@ -101,10 +122,12 @@ IPFW_CHECK="/sbin/ipfw -n"
 debug() { # $1 message to be displayed
 	[ x"${VERBOSE}" != x"0" ] && echo "ipfw-be: $1"
 }
+
 # if the first argument is -v, enable verbose mode
 set_verbose() {
     [ x"$1" = x"-v" -o x"$2" = x"-v" ] && VERBOSE=1
 }
+
 set_test() {
     [ x"$1" = x"-q" -o x"$2" = x"-q" ] || return
     TEST=1
@@ -112,10 +135,9 @@ set_test() {
     IPFW_CHECK="/bin/echo ipfw -n:"
 }
 
-
-abort() { # $1 message to be displayed
+abort() { # $1 message to be displayed in case of error
 	release_lock
-	echo "ipfw-be aborting: $1"
+	echo "ipfw-be aborting (netconfig help): $1"
 	exit 1
 }
 
@@ -139,15 +161,17 @@ clean_db() {
 	${IPFW} -q pipe flush
 	# ${IPFW} delete ${IPFW_RULE_MIN}-${IPFW_RULE_MAX}
 	# ${IPFW} pipe delete ${IPFW_PIPE_MIN}-${IPFW_PIPE_MAX}
+	# since all rules are now deleted, we should initialize the firewall 
+	ipfw_init
 }
 
 # Add the ipfw rule/pipe and update the database.
 # The pipe-in and pipe_out config are through global variables
 # CONFIG_IN CONFIG_OUT because they may be long.
 # Other arguments are on the command line
-add_rule() { # new_rule slice_id type arg rule pipe_base timeout
-    local new_rule=$1 slice_id=$2 type=$3 arg=$4
-    local rule_base=$5 pipe_base=$6 timeout=$7
+add_rule() { # new_rule type arg rule pipe_base timeout
+    local new_rule=$1 type=$2 arg=$3
+    local rule_base=$4 pipe_base=$5 timeout=$6
     local pipe_in pipe_out rule_in rule_out check_timeout
 
     # If we use a profile file, locate the user directory
@@ -159,7 +183,7 @@ add_rule() { # new_rule slice_id type arg rule pipe_base timeout
     pipe_in=$(($pipe_base + $pipe_base + 9998))
     pipe_out=$(($pipe_in + 1))
     local del	# anything to delete ?
-    local rule_nr=$(($rule_base + 39999))  # XXX formula for individual rules
+    local rule_nr=$(($rule_base + 39999))  # formula for individual rules
     if [ x"$new_rule" != x"0" ] ; then
 	case $type in
 	server)
@@ -182,8 +206,8 @@ add_rule() { # new_rule slice_id type arg rule pipe_base timeout
 	    ;;
 	esac
 
-	rule_in="pipe ${pipe_in} in jail $slice_id ${rule_in} // $type $arg"
-	rule_out="pipe ${pipe_out} out jail $slice_id ${rule_out} // $type $arg"
+	rule_in="pipe ${pipe_in} in jail $SLICE_ID ${rule_in} // $type $arg"
+	rule_out="pipe ${pipe_out} out jail $SLICE_ID ${rule_out} // $type $arg"
 	${IPFW_CHECK} add ${rule_nr} $rule_in > /dev/null || \
 		abort "ipfw syntax error $rule_in"
 	${IPFW_CHECK} add ${rule_nr} $rule_out > /dev/null || \
@@ -197,9 +221,9 @@ add_rule() { # new_rule slice_id type arg rule pipe_base timeout
 		abort "ipfw syntax error pipe_out"
 
     # all good, delete and add rules if necessary
-    [ "$del" = "service" ] && do_delete $slice_id service $arg
-    [ "$del" = "cli_ser" ] && do_delete $slice_id client $arg
-    [ "$del" = "cli_ser" ] && do_delete $slice_id server $arg
+    [ "$del" = "service" ] && do_delete $SLICE_ID service $arg
+    [ "$del" = "cli_ser" ] && do_delete $SLICE_ID client $arg
+    [ "$del" = "cli_ser" ] && do_delete $SLICE_ID server $arg
     [ "$new_rule" != "0" ] && ${IPFW} add ${rule_nr} $rule_in > /dev/null
     [ "$new_rule" != "0" ] && ${IPFW} add ${rule_nr} $rule_out > /dev/null
     # config pipes
@@ -212,19 +236,20 @@ add_rule() { # new_rule slice_id type arg rule pipe_base timeout
     ${IPFW} pipe ${pipe_out} show
 
     [ "$TEST" = "1" ] && return
-    # add to the database, at least to adjust the timeout
-    ( grep -v -- "^${slice_id} ${type} ${arg} " $DBFILE;  \
-	echo "${slice_id} ${type} ${arg} ${rule_base} ${pipe_base} ${timeout}" ) > ${DBFILE}.tmp
+    # add to the database
+    ( grep -v -- "^${SLICE_ID} ${type} ${arg} " $DBFILE;  \
+	echo "${SLICE_ID} ${type} ${arg} ${rule_base} ${pipe_base} ${timeout}" ) > ${DBFILE}.tmp
     mv ${DBFILE}.tmp ${DBFILE}
 }
 
 # Delete a given configuration
-do_delete() { # slice_id type arg
+do_delete() { # type arg
     local pipe_in pipe_out pipe_base rule_base rule_nr
-    local slice_id=$1 type=$2 arg=$3
+    local type=$1 arg=$2
 
-    [ "${arg}" = "" ] && abort "Missing arg on 'delete'"
-    set `find_rule $slice_id $type $arg`
+    [ "${type}" = "BLOCK" ] && abort "A Block can not be deleted"
+    [ "${arg}" = "" ] && abort "Missing args on 'delete', expected on of {SERVICE|SERVER|CLIENT} port_number"
+    set `find_rule $SLICE_ID $type $arg`
     rule_base=$1; pipe_base=$2
     [ "$rule_base" = "0" ] && return		# no rules found
 
@@ -235,14 +260,29 @@ do_delete() { # slice_id type arg
     $IPFW delete ${rule_nr}
     $IPFW pipe delete ${pipe_in}
     $IPFW pipe delete ${pipe_out}
-    echo "removed configuration ${slice_id} ${type} ${arg}"
+    echo "removed configuration ${SLICE_ID} ${type} ${arg}"
     [ "$TEST" = "1" ] && return
     # remove from the database
-    grep -v -- "^${slice_id} ${type} ${arg} " $DBFILE > ${DBFILE}.tmp
+    grep -v -- "^${SLICE_ID} ${type} ${arg} " $DBFILE > ${DBFILE}.tmp
     mv ${DBFILE}.tmp ${DBFILE}
 
     # XXX if the use block is empty
     # remove the table entry from ipfw and from the db
+    # not yet implemented
+}
+
+# compare the argument with the first two field of
+# the database.
+# On match returns the block number, otherwise returns 0.
+find_block() { # $1 slice_id
+    local ret
+    ret=`grep -- "^$1 BLOCK " $DBFILE`
+
+    [ x"$ret" = x ] && echo "0" && return	# nothing found
+    # ignore multiple matches. If the db is corrupt we are
+    # screwed anyways
+    set $ret
+    echo "$3"
 }
 
 # called with the database file as input
@@ -278,15 +318,83 @@ find_hole() {  # min max
 }
 
 # returns a free rule and pipe base for client|server|service
+# within a block
 # Returns r=0 if there are no resources available
 allocate_resources() {
     local p r
     # remove comments, extract field, sort
-    p=`grep -v '^#' $DBFILE | awk '{print $5}' | sort -n | \
+    p=`grep -v '^#' $DBFILE | grep -v BLOCK | awk '{print $5}' | sort -n | \
 	find_hole $PIPE_MIN $PIPE_MAX`
-    r=`grep -v '^#' $DBFILE | awk '{print $4}' | sort -n | find_hole $1 $2`
+    r=`grep -v '^#' $DBFILE | grep -v BLOCK | awk '{print $4}' | sort -n | \
+	find_hole $1 $2`
     [ $r = 0 -o $p = 0 ] && r=0 		# no resources available
     echo $r $p
+}
+
+#
+# execute functions from root context
+# can be used from root context as follow:
+# echo "super $command $args" | /vsys/ipfw-be 0
+do_super() { # $arguments...
+	case $1 in
+	init)
+	    ipfw_init; return 0
+	    ;;
+	dbcleanup)
+	    clean_db; return 0
+	    ;;
+	*)
+	    abort "Invalid super command"
+	    ;;
+	esac
+}
+
+#
+# show ipfw rules and pipes filtering on slice_id
+# If the first argument is 0 filter rules,
+# otherwise filter pipes
+do_show() { #$1 show rules or pipes
+    local list ipfw_list
+
+    if [ $1 == "0" ]; then
+	list=`grep "^$SLICE_ID " $DBFILE | grep -v BLOCK | cut -d " " -f 4`
+	for i in $list; do ipfw_list="$ipfw_list $(($i + 39999))"; done
+	[ -n "${ipfw_list}" ] && ${IPFW} show $ipfw_list
+    else
+	# ipfw pipe show does not selectively filter pipes
+	# XXX so leave this code commented and show all pipes
+	#list=`grep "^$SLICE_ID " $DBFILE | grep -v BLOCK | cut -d " " -f 5`
+	# the pipe list is build adding two ipfw pipes for each pipe index
+	#for i in $list; do ipfw_list="$ipfw_list $(($i + $i + 9998)) $(($i + $i + 9998 +1)) "; done
+	#[ -n "${ipfw_list}" ] && ${IPFW} pipe show $ipfw_list
+	${IPFW} pipe show
+    fi
+}
+
+#
+# refresh the rule timeout
+do_refresh() { # type arg timeout
+    local pipe_in pipe_out pipe_base rule_base rule_nr
+    local type=$1 arg=$2 timeout=$3
+
+    debug "do_refresh type: <$type> arg: <$arg> timeout: <$timeout>"
+    [ "${type}" = "BLOCK" ] && abort "BLOCK rule not valid"
+    [ "${timeout}" = "" ] && abort "Missing args on 'refresh', expected on of {SERVICE|SERVER|CLIENT} port_number"
+    set `find_rule $SLICE_ID $type $arg`
+    rule_base=$1; pipe_base=$2
+    [ "${rule_base}" = "0" ] && debug "no rules found" && return 0		# no rules found
+
+    rule_nr=$(($rule_base + 39999))		# XXX only individual rules
+    pipe_in=$(($pipe_base + $pipe_base + 9998))
+    pipe_out=$(($pipe_in + 1))
+    debug "ipfw rule and pipes value: rule: <$rule_nr> pipe in: <$pipe_in> pipe_out: <$pipe_out>"
+
+    [ "$TEST" = "1" ] && return
+    # update the database with the new timeout value
+    ( grep -v -- "^${SLICE_ID} ${type} ${arg} " $DBFILE;  \
+	echo "${SLICE_ID} ${type} ${arg} ${rule_base} ${pipe_base} ${timeout}" ) > ${DBFILE}.tmp
+    mv ${DBFILE}.tmp ${DBFILE}
+    echo "refreshed timeout for rule ${type} ${arg}"
 }
 
 # process a request.
@@ -296,13 +404,6 @@ allocate_resources() {
 # show {rules|pipes} [args]
 # delete type arg
 #
-# XXX not implemented yet
-# config {rule|pipe} num <parameters>
-# alloc rules|pipes [-t timeout] # returns a block of NUM_RULES or NUM_PIPES
-# release rules|pipes args	# release the entire block
-# refresh rules|pipes args [-t timeout]
-#
-# where uppercase values are keywords.
 # The timeout value is expressed as:
 # week, day, month or anything else accepted by the date command.
 # The id of the slice issuing the request is in the $SLICE_ID variable,
@@ -318,46 +419,46 @@ process() {
     debug "Received command: <$cmd> arguments: <$debug_args>"
 
     # set the timeout value
-    # clean args from the timeout keyword
+    # if present, extract the '-t timeout' substring from the command line
     timeout=`echo ${args} | ${SED} ${SEDOPT} 's/(.+)( -t [a-zA-Z0-9]+ )(.*)/\2/'`
+    # if the '-t timeout' is specified, use the user define timeout value
     if [ "${timeout}" != "${args}" ] ; then 	# match
+	# remove the '-t ' option
 	timeout=`echo ${timeout} | ${SED} ${SEDOPT} 's/-t //'`
 	check_timeout ${timeout}	# abort on error
+	# clean the arguments
 	args=`echo ${args} | ${SED} ${SEDOPT} 's/(.+)( -t [a-zA-Z0-9]+ )(.*)/\1 \3/'`
     else
+	# use the default value, no need to check for correctness, no need to clean arguments
 	timeout=`date --date="1day" +%s`		# default to 1 day
     fi
 
     debug "Timeout $timeout"
     # Handle special requests: show and delete
     case x"$cmd" in 
-    x"alloc") 
-	abort "XXX unimplemented " && return 0
-	;;
     x"config") 
-	[ "$type" = "server" ] && do_config $SLICE_ID $timeout $type $args && return 0
-	[ "$type" = "client" ] && do_config $SLICE_ID $timeout $type $args && return 0
-	[ "$type" = "service" ] && do_config $SLICE_ID $timeout $type $args && return 0
-	[ "$type" = "rule" ] && abort "XXX unimplemented " && return 0
-	[ "$type" = "pipe" ] && abort "XXX unimplemented " && return 0
-	abort "'config' should be followed by {server|client|service|rule|pipe}"
+	[ "$type" = "server" ] && do_config $timeout $type $args && return 0
+	[ "$type" = "client" ] && do_config $timeout $type $args && return 0
+	[ "$type" = "service" ] && do_config $timeout $type $args && return 0
+	abort "'config' should be followed by {server|client|service}"
 	;;
     x"delete") 
 	do_delete ${SLICE_ID} $type $args
 	;;
     x"refresh") 
-	abort "XXX unimplemented " && return 0
-	do_refresh ${SLICE_ID} $type $args $timeout
-	;;
-    x"release") 
-	abort "XXX unimplemented " && return 0
-	do_release ${SLICE_ID} $type $args
+	do_refresh $type $args $timeout && return 0
 	;;
     x"show")
-	# XXX should filter on jail
-	[ "$type" = "rules" ] && ${IPFW} show && return 0
-	[ "$type" = "pipes" ] && ${IPFW} pipe show && return 0
+	[ "$type" = "rules" ] && do_show 0 && return 0
+	[ "$type" = "pipes" ] && do_show 1 && return 0
 	abort "'show' should be followed by {rules|pipes}"
+	;;
+    x"super")
+	[ $SLICE_ID = 0 ] && do_super $type $args && return 0
+	abort "no permission for ipfw-be super execution"
+	;;
+    x"help")
+	do_help && return 0
 	;;
     *)
 	# help XXX to be done
@@ -372,16 +473,7 @@ check_timeout() { # timeout
     [ "$?" != "0" ] && abort "Date format $1 not valid"
 }
 
-do_release() { # slice_id type args timeout
-    return
-}
-
-do_refresh() { # slice_id ttype args
-    return
-}
-
-do_config() { # slice_id timeout type arg PIPE_IN pipe_conf PIPE_OUT pipe_conf
-    local slice_id=$1; shift
+do_config() { # timeout type arg PIPE_IN pipe_conf PIPE_OUT pipe_conf
     local timeout=$1; shift
     local type=$1; shift
     local arg=$1; shift	# XXX addr not yet implemented
@@ -411,7 +503,7 @@ do_config() { # slice_id timeout type arg PIPE_IN pipe_conf PIPE_OUT pipe_conf
     [ "$CONFIG_PIPE_OUT" = "" ] && abort "Missing pipe out configuration"
 
     debug "Configuration Required:"
-    debug "slice_id: $slice_id"
+    debug "slice_id: $SLICE_ID"
     debug "type: $type"
     debug "arg: $arg"
     debug "timeout: $timeout"
@@ -419,42 +511,71 @@ do_config() { # slice_id timeout type arg PIPE_IN pipe_conf PIPE_OUT pipe_conf
     debug "PIPE_OUT: $CONFIG_PIPE_OUT"
     debug "-----------------------"
 
-    # XXX Search if there is a block already allocated to the slice_id
-    # if not present
-    # {
-    #    allocate the block;
-    #    update the db;
-    #    add table to ipfw;
-    # }
-    # Returns the slice base rule number
-
     # check if the link is already configured
-    debug "Search for ${slice_id} ${type} ${arg}"
+    debug "Search for ${SLICE_ID} ${type} ${arg}"
 
-    set `find_rule ${slice_id} ${type} ${arg}`
+    set `find_rule ${SLICE_ID} ${type} ${arg}`
     local rule_base=$1
     local pipe_base=$2
     local new_pipe=0
 
-    if [ ${rule_base} = "0" ] ; then
-	debug "Rule not found, new installation"
-	new_pipe=1
-	set `allocate_resources $RULE_IN_MIN $RULE_IN_MAX`
-	rule_base=$1; pipe_base=$2
-        [ $rule_base = 0 ] && abort "no resources available"
-	debug "found free resources rule: $rule_base pipe: $pipe_base"
-    else
+    if [ ! ${rule_base} = "0" ] ; then
 	debug "Rule found, just changing the pipe configuration"
+	add_rule $new_pipe $type $arg $rule_base $pipe_base $timeout
+	hook_call $type $port $rule_base $pipe_base $timeout
+	return 0; # link configured, exit
     fi
 
-    add_rule $new_pipe $slice_id $type $arg $rule_base $pipe_base $timeout
+    debug "link not found, search for a block already allocated to the user"
 
-    # if present, call a hook in order to collect statistical
-    # information on dummynet usage
-    if [ -n "${HOOK}" -a -x "${HOOK}" ]; then
-	# XXX
-	${HOOK} $slice_id $type $port $rule_base $pipe_base $timeout &
+    # Search if there is a block already allocated to the slice_id
+    set `find_block ${SLICE_ID}`
+    local block_n=$1
+    if [ ${block_n} = "0" ] ; then
+	debug "Block not found, allocate a new block"
+	# blocks are allocated in sequence, get the first free
+	block_n=`grep BLOCK $DBFILE | tail -1 | cut -d " " -f 3`
+	if [ -z $block_n ]; then
+		block_n=$(($BLOCK_MIN - 1))
+	fi
+	RULE_IN_MIN=$(($RULE_BASE + $(($M*$block_n))))
+	block_n=$(($block_n +1))
+	debug "Allocated new block $block_nr to user $SLICE_ID"
+	[ $block_n -gt $BLOCK_MAX ] && abort "no block resources available"
+
+	# add the rule into the firewall table.
+	# note that the rule number into the table are not database number,
+	# so we need to compute the firewall number before the table insertion
+	local ipfw_rule_nr=$(($RULE_IN_MIN + 39999))  # XXX formula for individual rules
+	debug "Configuring table: <${IPFW_CHECK} table $SLICE_TABLE add ${SLICE_ID} ${ipfw_rule_nr}>"
+	${IPFW_CHECK} table $SLICE_TABLE add ${SLICE_ID} ${rule_nr} > /dev/null || \
+		abort "ipfw syntax error $rule_out"
+	${IPFW} table $SLICE_TABLE add ${SLICE_ID} ${ipfw_rule_nr} > /dev/null
+
+	[ "$TEST" = "1" ] && return
+	# add the block declaration to the database
+	( grep -v -- "^${SLICE_ID} BLOCK " $DBFILE;  \
+		echo "${SLICE_ID} BLOCK ${block_n}" ) > ${DBFILE}.tmp
+	mv ${DBFILE}.tmp ${DBFILE}
+    else
+	debug "Block $block_n found for user $SLICE_ID"
     fi
+
+    RULE_IN_MAX=$(($RULE_BASE + $(($M * $block_n))))
+    RULE_IN_MIN=$(($RULE_IN_MAX - $M))
+    debug  "Block $block_n, with rules <${RULE_IN_MIN}:${RULE_IN_MAX}>" 
+    debug  "Corresponding to ipfw rules <$(($RULE_IN_MIN + 39999)):$(($RULE_IN_MAX + 39999))>"
+    debug "where the last rule number belongs to the next slice."
+
+    new_pipe=1
+    set `allocate_resources $RULE_IN_MIN $RULE_IN_MAX`
+    rule_base=$1; pipe_base=$2
+
+    [ $rule_base = 0 ] && abort "no resources available"
+    debug "found free resources rule: $rule_base pipe: $pipe_base"
+
+    add_rule $new_pipe $type $arg $rule_base $pipe_base $timeout
+    hook_call $type $port $rule_base $pipe_base $timeout
 }
 
 #
@@ -474,12 +595,91 @@ release_lock() {
     rm -f $lockfile
 }
 
+#
+# initialize the firewall with PlanetLab default rules
+ipfw_init() {
+	${IPFW} add $S skipto tablearg lookup jail $SLICE_TABLE
+	${IPFW} add $D allow all from any to any
+}
+
+#
+# if present, call a hook function
+# Arguments are:
+# slice_id type port rule_base pipe_base timeout
+hook_call() {
+	if [ -n "${HOOK}" -a -x "${HOOK}" ]; then
+		${HOOK} ${SLICE_ID} "$*" &
+	fi
+}
+
+do_help() {
+	cat << EOF
+Usage:
+        ./neconfig [SERVER|CLIENT|SERVICE] port [-t timeout]    \
+                PIPE_IN <pipe in configuration> PIPE_OUT <pipe out configuration>
+        ./netconfig show [rules|pipes]
+        ./netconfig delete [SERVER|CLIENT|SERVICE] port
+        ./netconfig refresh [-t timeout] [SERVER|CLIENT|SERVICE] port
+
+We assume three type of connections
+  SERVER we know the local port P, and do the
+       bind/listen/accept on the local socket.
+               pipe_in in dst-port P
+               pipe_out out src-port P
+
+  CLIENT we know the remote port P, and do a connect to it
+       (src and dst are swapped wrt the previous case)
+               pipe_in in src-port P
+               pipe_out out dst-port P
+
+  SERVICE we run a server on local port P, and also connect
+       from local clients to remote servers on port P.
+               pipe_in in { dst-port P or src-port P }
+               pipe_out out { src-port P or dst-port P }
+
+  On a given port a user can have one CLIENT and/or one SERVER
+  configuration or one SERVICE configuration.
+  When a SERVICE configuration is installed any existing CLIENT
+  and SERVER configuration on the same port are removed.
+  When a CLIENT or SERVER configuration is installed any existing
+  SERVICE configuration on the same port is removed.
+
+The pipe configuration, both for the upstream and downstream link,
+follow the dummynet syntax. A quick and not exaustive example
+of the parameters that can be used to configure the delay,
+the bandwidth and the packet loss rate for a link follow:
+
+        PIPE_IN|PIPE_OUT delay 100ms bw 1Mbit/s plr 0.1
+
+The full documentation is on the manpage[1].
+
+The timeout value follow the linux 'date' command format[2]
+and can be specified as follow:
+        1week
+        2hours
+        3days
+
+--- References:
+[1] http://www.freebsd.org/cgi/man.cgi?query=ipfw
+[2] http://linuxmanpages.com/man1/date.1.php
+EOF
+}
+
 # ALLOCATION OF RULES AND PIPES
-# The ruleset is structured as follows
-#	1...X-1	generic rules
-#	X	skipto tablearg jail 0-65535 lookup jail-table
-#	X+1..Y-1 ... other generic rules
-#	Y	allow ip from any to any
+# The ruleset is composed by different sections, as follow:
+# - a first set of rules is reserved and is configurable by
+#   the root context only;
+# - the skipto rule (S), used to optimize the slice rule search;
+# - a second block of reserved rules;
+# - a default (D) rule for the generic configuration;
+# - the slice reserved rules, a block of M rules for each slice;
+# - the firewall default rule.
+#
+# To summarize:
+#	1...S-1	first block of reserved rules
+#	S	skipto tablearg lookup jail 1
+#	S+1..D-1 ... second block of reserved rules
+#	D	allow ip from any to any
 #
 #	RULE_BASE <block of M entries for first user>
 #	RULE_BASE+M <block of M entry for second user ...>
@@ -504,7 +704,7 @@ release_lock() {
 #   For each of these slices we reserve a block of M ipfw rules
 #   starting at some RULE_BASE rule number.
 #   The database entry for this info has the form
-#	XID	TABLE	block_number
+#	XID	BLOCK	block_number
 #   where blocks are numbered sequentially from 1.
 #   The actual rule number is RULE_BASE + M*(block_number)
 #   (we don't care if we waste some rules)
@@ -516,24 +716,7 @@ release_lock() {
 #   (it must be within the block of M rules allocated to the slice)
 #   pipe_index is the index of the couple of pipes used for the
 #   configuration. pipe_index starts from 1.
-
-# ---OLD-START--
-# pipes are always allocated in pairs
-# rules are either individual or in groups of size NUM_RULES (e.g. 4)
-# and are allocated in two different parts of the rule namespace
-# (e.g. blocks from 10000 to 49999 and individuals from 50000 to 59999)
-# Internally allocator uses the base number for each item, e.g.
-# rule 10000..49999 -> rule_base=1..10000
-# rule 50000..59999 -> rule_base=10001..20000
-# pipe 10000..59999 -> pipe_base=1..25000
-# a bit of math lets us compute the correct numbers.
-# For CLIENT, SERVER, SERVICE the database contains entries as
-#	XID	TYPE	arg	rule_base	pipe_base
-# For blocks the entries are
-#	XID	RULE	-	rule_base	-
-#	XID	PIPE	-	-		pipe_base
-# When a rule or pipe is referenced we first check that the owner owns it.
-# more details below.
+#
 
 #-- main starts here
 debug "--- $0 START for $SLICENAME ---"
