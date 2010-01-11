@@ -8,7 +8,7 @@
 
 %define name vsys-scripts
 %define version 0.95
-%define taglevel 12
+%define taglevel 13
 
 %define release %{taglevel}%{?pldistro:.%{pldistro}}%{?date:.%{date}}
 
@@ -54,6 +54,11 @@ rm -rf $RPM_BUILD_ROOT
 %postun
 
 %changelog
+* Mon Jan 11 2010 Thierry Parmentelat <thierry.parmentelat@sophia.inria.fr> - vsys-scripts-0.95-13
+- ipfw frontend has a rules cleanup feature
+- ongoing work around vif_up
+- new script 'run_with_devices'
+
 * Thu Nov 26 2009 Thierry Parmentelat <thierry.parmentelat@sophia.inria.fr> - vsys-scripts-0.95-12
 - improve usability of the ipfw backend
 
