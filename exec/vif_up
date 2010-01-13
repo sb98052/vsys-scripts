@@ -143,8 +143,8 @@ else:
 os.system(cmd_ifconfig)
 
 # Add iptables rules (Clearing old ones first, if they exist)
-cmd_iptables_in = "/sbin/iptables -A INPUT -i %s -m mark ! --mark %d -j DROP" % (vif, sliceid)
-cmd_iptables_del_in = "/sbin/iptables -D INPUT -i %s -m mark ! --mark %d -j DROP 2>/dev/null" % (vif, sliceid)
+cmd_iptables_in = "/sbin/iptables -A INPUT -i %s -m mark -m state --state NEW ! --mark %d -j DROP" % (vif, sliceid)
+cmd_iptables_del_in = "/sbin/iptables -D INPUT -i %s -m mark -m state --state NEW ! --mark %d -j DROP 2>/dev/null" % (vif, sliceid)
 cmd_iptables_out = "/sbin/iptables -A OUTPUT -o %s -m mark ! --mark %d -j DROP" % (vif, sliceid)
 cmd_iptables_del_out = "/sbin/iptables -D OUTPUT -o %s -m mark ! --mark %d -j DROP 2>/dev/null" % (vif, sliceid)
 
