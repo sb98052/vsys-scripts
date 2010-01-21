@@ -8,7 +8,7 @@
 
 %define name vsys-scripts
 %define version 0.95
-%define taglevel 13
+%define taglevel 14
 
 %define release %{taglevel}%{?pldistro:.%{pldistro}}%{?date:.%{date}}
 
@@ -54,6 +54,10 @@ rm -rf $RPM_BUILD_ROOT
 %postun
 
 %changelog
+* Thu Jan 21 2010 Sapan Bhatia <sapanb@cs.princeton.edu> - vsys-scripts-0.95-14
+- Tweak to Thom Haddow's script to let a slice see packets related to
+- existing connections.
+
 * Mon Jan 11 2010 Thierry Parmentelat <thierry.parmentelat@sophia.inria.fr> - vsys-scripts-0.95-13
 - ipfw frontend has a rules cleanup feature
 - ongoing work around vif_up
