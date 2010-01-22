@@ -1,7 +1,7 @@
 CC=gcc
 CFLAGS=-g -O2
 
-all: dcookie fd_bmsocket fd_udpsocket fd_fusemount fd_tuntap
+all: dcookie fd_bmsocket fd_udpsocket fd_fusemount fd_tuntap fd_tos
 
 fd_tuntap: fd_tuntap.c
 	gcc fd_tuntap.c -o exec/fd_tuntap
@@ -20,6 +20,9 @@ fd_udpsocket: fd_udpsocket.c fdpass.o
 
 fd_fusemount: fd_fusemount.c fdpass.o
 	gcc fd_fusemount.c fdpass.o -o exec/fd_fusemount
+
+fd_tos: fd_tos.c fdpass.o
+	gcc fd_tos.c fdpass.o -o exec/fd_tos
 
 clean: 
 	rm -f exec/*
