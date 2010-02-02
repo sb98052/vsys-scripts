@@ -200,8 +200,8 @@ add_rule() { # slice_id new_rule type arg ipfw_rule pipe_index timeout
 	    ;;
 	esac
 
-	rule_in="pipe ${ipfw_pipe_in} in jail $slice_id ${rule_in} // $type $arg"
-	rule_out="pipe ${ipfw_pipe_out} out jail $slice_id ${rule_out} // $type $arg"
+	rule_in="pipe ${ipfw_pipe_in} in ${rule_in} // $type $arg $slice_id"
+	rule_out="pipe ${ipfw_pipe_out} out ${rule_out} // $type $arg $slice_id"
 
 	${IPFW_CHECK} add ${ipfw_rule} $rule_in > /dev/null || \
 		abort "ipfw syntax error $rule_in"
@@ -486,7 +486,7 @@ do_refresh() { # slice_id type arg timeout
 # process a request.
 # A request is made by a set of arguments formatted as follow:
 #
-# config {server|client|service} arg [-t timeout] PIPE_IN <pipe_conf> PIPE_OUT <pipe_conf>
+# config {server|client|service} arg [-t timeout] IN <pipe_conf> OUT <pipe_conf>
 # show {rules|pipes} [args]
 # delete type arg
 # refresh type arg [-t timeout]
@@ -566,25 +566,25 @@ check_timeout() { # timeout
     echo $tt
 }
 
-do_config() { # slice_id timeout type arg PIPE_IN pipe_conf PIPE_OUT pipe_conf
+do_config() { # slice_id timeout type arg IN pipe_conf OUT pipe_conf
     local slice_id=$1; shift
     local timeout=$1; shift
     local type=$1; shift
     local arg=$1; shift	# XXX addr not yet implemented
 
-    [ "$1" != "PIPE_IN" ] && abort "Missing addr:port, or PIPE_IN requested"
+    [ "$1" != "IN" ] && abort "Missing addr:port, or IN requested"
     shift
 
     # read pipe in configuration
     i=""
-    while [ "$1" != "" -a "$1" != "PIPE_OUT" ] ; do
+    while [ "$1" != "" -a "$1" != "OUT" ] ; do
 	i="$i $1"
 	shift
     done
     CONFIG_PIPE_IN="$i"		# XXX local ?
     [ "$CONFIG_PIPE_IN" = "" ] && abort "Missing pipe in configuration"
 
-    [ "$1" != "PIPE_OUT" ] && abort "Missing pipe in configuration, or missing PIPE_OUT"
+    [ "$1" != "OUT" ] && abort "Missing pipe in configuration, or missing OUT"
     shift
 
     # read pipe out configuration
@@ -601,8 +601,8 @@ do_config() { # slice_id timeout type arg PIPE_IN pipe_conf PIPE_OUT pipe_conf
     debug "type: $type"
     debug "arg: $arg"
     debug "timeout: $timeout"
-    debug "PIPE_IN: $CONFIG_PIPE_IN"
-    debug "PIPE_OUT: $CONFIG_PIPE_OUT"
+    debug "IN: $CONFIG_PIPE_IN"
+    debug "OUT: $CONFIG_PIPE_OUT"
     debug "-----------------------"
 
     # check if the link is already configured
@@ -660,7 +660,7 @@ do_help() {
 	cat << EOF
 Usage:
         ./neconfig [SERVER|CLIENT|SERVICE] port [-t timeout]    \
-                PIPE_IN <pipe in configuration> PIPE_OUT <pipe out configuration>
+                IN <pipe in configuration> OUT <pipe out configuration>
         ./netconfig show [rules|pipes]
         ./netconfig delete [SERVER|CLIENT|SERVICE] port
         ./netconfig refresh [-t timeout] [SERVER|CLIENT|SERVICE] port
@@ -693,7 +693,7 @@ follow the dummynet syntax. A quick and not exaustive example
 of the parameters that can be used to configure the delay,
 the bandwidth and the packet loss rate for a link follow:
 
-        PIPE_IN|PIPE_OUT delay 100ms bw 1Mbit/s plr 0.1
+        IN|OUT delay 100ms bw 1Mbit/s plr 0.1
 
 The full documentation is on the manpage[1].
 
