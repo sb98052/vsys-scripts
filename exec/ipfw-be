@@ -11,80 +11,36 @@
 # - configures the firewall
 # - writes results on the output vsys pipe
 #
-# Configurable variables are at the beginning
+# Configurable variables are at the beginning (only HOOK so far)
 
-# If HOOK is set the program is called before configuring a rule.
+# If HOOK is set, ${HOOK} is called before configuring a rule.
 # A sample hook can be found in the ipfwroot.rpm package,
 # it can be used to collect statistical information on dummynet usage.
-# To configure an hook, set the HOOK variable as follow:
+# To configure a hook, set the HOOK variable as follow:
 # HOOK=/tmp/sample_hook
 
-# You should not touch anything below.
+#--- You should not touch anything below this line. ----
+# For documentation see ARCHITECTURE near the end of the file.
 
-# We assume three type of connections
-#  SERVER we know the local port P, and do the
-#	bind/listen/accept on the local socket.
-#		pipe_in in dst-port P
-#		pipe_out out src-port P
-#
-#  CLIENT we know the remote port P, and do a connect to it
-#	(src and dst are swapped wrt the previous case)
-#		pipe_in in src-port P
-#		pipe_out out dst-port P
-#
-#  SERVICE we run a server on local port P, and also connect
-#	from local clients to remote servers on port P.
-#		pipe_in in { dst-port P or src-port P }
-#		pipe_out out { src-port P or dst-port P }
-# 
-#  On a given port a user can have one CLIENT and/or one SERVER
-#  configuration or one SERVICE configuration.
-#  When a SERVICE configuration is installed any existing CLIENT
-#  and SERVER configuration on the same port are removed.
-#  When a CLIENT or SERVER configuration is installed any existing
-#  SERVICE configuration on the same port is removed.
-#
-#  The following is a case that is implemented as SERVER
-#  D	we run a server on local port P, and also connect
-#	to remote servers but doing a bind(P) before connect().
-#	In terms of rules, this is not distinguishable from
-#	the SERVER case, however it would be different if we
-#	had a way to tell SERVER from CLIENT sockets
-#		pipe_in in dst-port P
-#		pipe_out out src-port P
-#
-# The database of current ipfw and dummynet configuration is in a
-# file which is regenerated on errors. The format is
-#
-#	slice_id type arg rule_base pipe_base timeout
-#
-# (lines starting with '#' are comments and are ignored)
-# For each configuration we allocate one rule number in ipfw,
-# and two sequential pipe numbers.
-
-# globals, do not touch below
+#--- global variables ---
 VERBOSE=0	# set to !0 to enable debug messages
 TEST=0		# set to 1 for test mode
 
+# The database and the lock file
 DBFILE=/tmp/ff
 lockfile=/var/lock/ipfw.lock
 
-# These values are the keys used in the database for blocks
-# and pipes. For rules we store directly the ipfw number.
-#
-# For each user we allocate a block of $M rules. The rules
-# allocated to users are within the range:
-# ipfw_min_rule = RULE_BASE
-# ipfw_max_rule = RULE_BASE + ((M-1)*block_n) -1
+# Min and max value (inclusive) for block_index
 BLOCK_MIN=1
 BLOCK_MAX=1000
-M=50		# block size
+M=50		# size of per-slice block of rules
+# Min and max value (inclusive) for pipe_index
 PIPE_MIN=1
 PIPE_MAX=25000
 
 # These are the actual rule numbers used in ipfw
-IPFW_RULE_MIN=10000
-IPFW_PIPE_MIN=10000
+IPFW_RULE_MIN=10000	# initial per-slice rule number
+IPFW_PIPE_MIN=10000	# initial pipe number
 
 # The skipto and the generic default rule
 # these values are used to initialize the firewall
@@ -115,6 +71,7 @@ set_verbose() {
     [ x"$1" = x"-v" -o x"$2" = x"-v" ] && VERBOSE=1
 }
 
+# set test mode if -q is found
 set_test() {
     [ x"$1" = x"-q" -o x"$2" = x"-q" ] || return
     TEST=1
@@ -129,13 +86,13 @@ abort() { # $1 message to be displayed in case of error
 }
 
 # remove dangerous characters from user input
-# if present, the leading '-v/-t' will be removed
+# if present, the leading '-v/-q' will be removed
 filter() { # $* variables to be filtered
 	[ x${1} = x"-v" -o x${1} = x"-q" ] && shift
 	[ x${1} = x"-v" -o x${1} = x"-q" ] && shift
 	# allowed chars are: numbers, uppercase and lowercase letters,
 	# spaces, and the following symbols: .,_-/
-	echo "$*" | ${SED} ${SEDOPT} 's/[^\t0-9a-zA-Z., _\/\{}-]*//g'
+	echo "$*" | ${SED} ${SEDOPT} 's/[^\t0-9a-zA-Z., _\/\{}@-]*//g'
 }
 
 # remove all entries from the ipfw config, and create an empty db
@@ -155,8 +112,8 @@ clean_db() {
 
 #
 # Add the ipfw rule/pipe and update the database.
-# The pipe-in and pipe_out config are through global variables
-# CONFIG_IN CONFIG_OUT because they may be long.
+# The pipe-in and pipe-out config are through global variables
+# rule_in rule_out because they may be long. XXX why ?
 # Other arguments are on the command line
 #
 # the new_rule variable is set if the rule to be installed is new
@@ -166,33 +123,48 @@ add_rule() { # slice_id new_rule type arg ipfw_rule pipe_index timeout
     local slice_id=$1 new_rule=$2 type=$3 arg=$4
     local ipfw_rule=$5 pipe_index=$6 timeout=$7
     local ipfw_pipe_in ipfw_pipe_out check_timeout
+    local p h # used to split the argument
 
-    # If we use a profile file, locate the user directory
-    # move in the slice root dir XXX todo
-    # [ "$TEST" != "1" ] && cd /vservers/${SLICENAME}/root
-    #echo ${CONFIG_STRING} | ${SED} -e "s/ profile \(.[^ ]\)/ profile \/vservers\/${SLICENAME}\/\1/g"
-
+    local h_in h_out
+    # local rule_in rule_out # XXX test if this works
     # find actual pipe numbers
     ipfw_pipe_in=$(($IPFW_PIPE_MIN + $((2 * $(($pipe_index - 1)))) ))
     ipfw_pipe_out=$(($ipfw_pipe_in + 1))
-    local del			# used delete incompatible configurations
+    local del		# used to delete incompatible configurations
+
+    # split the argument, and prepare PORTLIST (p) and ADDRLIST (h)
+    p=`echo $arg | cut -s -d "@" -f1-`	# empty if no separator
+    if [ "$p" = "" ] ; then
+	p=$arg
+    else
+	p=`echo $arg | cut -d "@" -f1`
+	h=`echo $arg | cut -d "@" -f2`
+    fi
+
+    if [ "$h" = "" ] ; then
+	h_in=""
+	h_out=""
+    else
+	h_in=" src-ip ${h} "
+	h_out=" dst-ip ${h} "
+    fi
 
     # first, call ipfw -n to check syntax, if ok move on and do the action
     if [ x"$new_rule" != x"0" ] ; then
 	case $type in
-	server)
-	    rule_in="dst-port $arg"
-	    rule_out="src-port $arg"
+	SERVER|server)
+	    rule_in="dst-port $p"
+	    rule_out="src-port $p"
 	    del=service
 	    ;;
-	client)
-	    rule_in="src-port $arg"
-	    rule_out="dst-port $arg"
+	CLIENT|client)
+	    rule_in="src-port $p"
+	    rule_out="dst-port $p"
 	    del=service
 	    ;;
-	service)
-	    rule_in="{ src-port $arg or dst-port $arg }"
-	    rule_out="{ src-port $arg or dst-port $arg }"
+	SERVICE|service)
+	    rule_in="{ src-port $p or dst-port $p }"
+	    rule_out="{ src-port $p or dst-port $p }"
 	    del="cli_ser"
 	    ;;
 	*)
@@ -200,19 +172,20 @@ add_rule() { # slice_id new_rule type arg ipfw_rule pipe_index timeout
 	    ;;
 	esac
 
-	rule_in="pipe ${ipfw_pipe_in} in ${rule_in} // $type $arg $slice_id"
-	rule_out="pipe ${ipfw_pipe_out} out ${rule_out} // $type $arg $slice_id"
+	rule_in="pipe ${ipfw_pipe_in} in ${h_in} ${rule_in} // $type $arg $slice_id"
+	rule_out="pipe ${ipfw_pipe_out} out ${h_out} ${rule_out} // $type $arg $slice_id"
 
-	${IPFW_CHECK} add ${ipfw_rule} $rule_in > /dev/null || \
-		abort "ipfw syntax error $rule_in"
-	${IPFW_CHECK} add ${ipfw_rule} $rule_out > /dev/null || \
-		abort "ipfw syntax error $rule_out"
+	# Move into the user root directory. The profile should be located there
+	( cd /vservers/${SLICENAME}/`pwd`/ ; ${IPFW_CHECK} add ${ipfw_rule} ${rule_in} ) > /dev/null || \
+		abort "ipfw syntax error ${rule_in}" 
+	( cd /vservers/${SLICENAME}/`pwd`/ ; ${IPFW_CHECK} add ${ipfw_rule} ${rule_out} ) > /dev/null || \
+		abort "ipfw syntax error ${rule_out}" 
     fi
 
     # check error reporting
-    ${IPFW_CHECK} pipe ${ipfw_pipe_in} config ${CONFIG_PIPE_IN} > /dev/null || \
-		abort "ipfw syntax error pipe_in"
-    ${IPFW_CHECK} pipe ${ipfw_pipe_out} config ${CONFIG_PIPE_OUT} > /dev/null || \
+    ( cd /vservers/${SLICENAME}/`pwd`/ ; ${IPFW_CHECK} pipe ${ipfw_pipe_in} config ${CONFIG_PIPE_IN} ) > /dev/null || \
+		abort "ipfw syntax error pipe_in" 
+    ( cd /vservers/${SLICENAME}/`pwd`/ ; ${IPFW_CHECK} pipe ${ipfw_pipe_out} config ${CONFIG_PIPE_OUT} ) > /dev/null || \
 		abort "ipfw syntax error pipe_out"
 
     # all good, delete and add rules if necessary
@@ -222,18 +195,18 @@ add_rule() { # slice_id new_rule type arg ipfw_rule pipe_index timeout
     [ "$new_rule" != "0" ] && ${IPFW} add ${ipfw_rule} $rule_in > /dev/null
     [ "$new_rule" != "0" ] && ${IPFW} add ${ipfw_rule} $rule_out > /dev/null
     # config pipes
-    ${IPFW} pipe ${ipfw_pipe_in} config ${CONFIG_PIPE_IN}
-    ${IPFW} pipe ${ipfw_pipe_out} config ${CONFIG_PIPE_OUT}
+    ( cd /vservers/${SLICENAME}/`pwd`/ ; ${IPFW} pipe ${ipfw_pipe_in} config ${CONFIG_PIPE_IN} )
+    ( cd /vservers/${SLICENAME}/`pwd`/ ; ${IPFW} pipe ${ipfw_pipe_out} config ${CONFIG_PIPE_OUT} )
 
     # send output to the user
     ${IPFW} show ${ipfw_rule}
     ${IPFW} pipe ${ipfw_pipe_in} show
     ${IPFW} pipe ${ipfw_pipe_out} show
 
-#add test 
+    # do not write on the database on test-only
     [ "$TEST" = "1" ] && return
     # add to the database
-    ( grep -v -- "^${slice_id} ${type} ${arg} " $DBFILE;  \
+    ( grep -iv -- "^${slice_id} ${type} ${arg} " $DBFILE;  \
 	echo "${slice_id} ${type} ${arg} ${ipfw_rule} ${pipe_index} ${timeout}" ) > ${DBFILE}.tmp
     mv ${DBFILE}.tmp ${DBFILE}
 }
@@ -247,8 +220,8 @@ do_delete() { # block_deletion slice_id type arg
     local ipfw_pipe_in ipfw_pipe_out pipe_index ipfw_rule
     local block_deletion=$1 slice_id=$2 type=$3 arg=$4
 
-    [ "${type}" = "BLOCK" ] && abort "A Block can not be deleted"
-    [ "${arg}" = "" ] && abort "Missing args on 'delete', expected on of {SERVICE|SERVER|CLIENT} port_number"
+    [ "${type}" = "BLOCK" ] && abort "A BLOCK can not be deleted"
+    [ "${arg}" = "" ] && abort "Missing args on 'delete', expected on of {CLIENT|SERVER|SERVICE} arg"
     set `find_rule $slice_id $type $arg`
     ipfw_rule=$1; pipe_index=$2
     [ "$ipfw_rule" = "0" ] && return		# no rules found
@@ -262,11 +235,11 @@ do_delete() { # block_deletion slice_id type arg
     $IPFW delete ${ipfw_rule}
     $IPFW pipe delete ${ipfw_pipe_in}
     $IPFW pipe delete ${ipfw_pipe_out}
-    # remove from the database
-    grep -v -- "^${slice_id} ${type} ${arg} " $DBFILE > ${DBFILE}.tmp
+    # remove from the database (case insensitive)
+    grep -iv -- "^${slice_id} ${type} ${arg} " $DBFILE > ${DBFILE}.tmp
     mv ${DBFILE}.tmp ${DBFILE}
 
-    # if there are no mor rules for the user
+    # if there are no more rules for the user
     # remove the table entry from ipfw and from the db
     [ $block_deletion = 0 ] && return 0
 
@@ -278,7 +251,6 @@ do_delete() { # block_deletion slice_id type arg
     table_remove $slice_id $block_n 
 }
 
-#
 # compare the argument with the first two field of
 # the database.
 # On match returns the block number, otherwise returns 0.
@@ -305,19 +277,20 @@ table_remove() { # $slice_id $block_n
     local ipfw_rulemax=$(($IPFW_RULE_MIN + $(($M *${block_n})) -1))
     ${IPFW} table $SLICE_TABLE delete $slice_id
     ${IPFW} delete ${ipfw_rulemax}
-    ( grep -v -- "^${slice_id} BLOCK ${block_n}" $DBFILE; ) > ${DBFILE}.tmp
+    ( grep -iv -- "^${slice_id} BLOCK ${block_n}" $DBFILE; ) > ${DBFILE}.tmp
     mv ${DBFILE}.tmp ${DBFILE}
     return 0
 }
 
 #
-# find a rule and pipes
-# allocate a new block if no rules are found.
+# Find a rule and pipe_index for the given key (xid type arg)
+# Allocate a new block if first entry for this xid.
+# Rule and pipe are not written into the database, only the block is.
 #
-# Return ipfw_rule, index_pipe and new_rule
-# new_rule is a flag set if the rule was not found
+# Return ipfw_rule pipe_index new_rule
+# 'new_rule' is 0 if the rule existed, 1 if it is new
 #
-# return 0 as first argument if there are no resource available
+# return ipfw_rule = 0 if there are no resources available
 find_allocate() { # slice_id type arg
     local slice_id=$1 type=$2 arg=$3
     local ipfw_rule pipe_index new_block=0
@@ -327,23 +300,24 @@ find_allocate() { # slice_id type arg
     ipfw_rule=$1; pipe_index=$2
     [ ! ${ipfw_rule} = 0 ] && echo $ipfw_rule $pipe_index "0" && return 0	# rules found, return
 
-    # no rules found, search for an already allocated block
-    # if not found, allocate a new block
+    # no rules found, search for an already existing block, or
+    # allocate a new one
     local block_n=`find_block ${slice_id}`
-    [ ${block_n} = "0" ] && new_block=1 && block_n=`allocate_block`
+    [ ${block_n} = "0" ] && new_block=1 && block_n=`find_free_block`
     [ ${block_n} = "0" -o ${block_n} -gt $BLOCK_MAX ] && echo 0 && return 0;
 
-    # here we have a valid block id
-    # compute the user block ruleset
+    # We have a valid block, compute the range for user rules
     local ipfw_rulemin=$(($IPFW_RULE_MIN + $(($M *$(($block_n - 1))))))
     local ipfw_rulemax=$(($(($ipfw_rulemin + $M)) - 1 ))
 
-    # find rule and pipes, we reserve the last rule to the user default rule
+    # Find rule and pipes, reserve the last rule for the user's
+    # default rule that catches regular traffic.
     set `allocate_resources $ipfw_rulemin $(($ipfw_rulemax - 1))`
     ipfw_rule=$1; pipe_index=$2
     [ $ipfw_rule = 0 ] && echo 0 && return 0	# no resources
 
-    # configure the table, add the last user rule and update the database
+    # If this is a new block, add the slice to the lookup table
+    # and put a default rule at the end of the block.
     if [ "$TEST" = "0" -a $new_block = 1 ] ; then
 	${IPFW} table $SLICE_TABLE add ${slice_id} ${ipfw_rulemin} > /dev/null
 	${IPFW} add ${ipfw_rulemax} allow all from any to any > /dev/null
@@ -352,7 +326,6 @@ find_allocate() { # slice_id type arg
 
     echo $ipfw_rule $pipe_index "1"
     return 0
-
 }
 
 #
@@ -365,7 +338,7 @@ find_allocate() { # slice_id type arg
 # no echo inside
 find_rule() { # slice_id type arg
     local ret
-    ret=`grep -- "^$1 $2 $3 " $DBFILE | grep -v BLOCK`
+    ret=`grep -i -- "^$1 $2 $3 " $DBFILE | grep -v BLOCK`
 
     [ x"$ret" = x ] && echo "0 0 0 " && return	# nothing found
     # ignore multiple matches. If the db is corrupt we are
@@ -389,7 +362,7 @@ find_hole() {  # min max
     echo $cand
 }
 
-#
+# XXX despite the name this does not allocate but only finds holes.
 # returns a free rule and pipe base for client|server|service
 # within a block
 # Returns r=0 if there are no resources available
@@ -405,17 +378,16 @@ allocate_resources() { # ipfw_minrule ipfw_maxrule
     echo $r $p
 }
 
-#
-# allocate a free block
+
+# Returns the index of a free block
 # Returns 0 if there are no resources available
 # no debug inside
-allocate_block() {
+find_free_block() {
     b=`grep -v '^#' $DBFILE | grep BLOCK | awk '{print $3}' | sort -n | \
 	find_hole $BLOCK_MIN $BLOCK_MAX`
     echo $b
 }
 
-#
 # parse the ipfw database and remove expired rules
 #
 # Each timeout value stored in the database is compared against
@@ -440,7 +412,6 @@ kill_expired() { # slice_id type arg
     rm ${DBFILE}.kill
 }
 
-#
 # execute functions from root context
 # can be used from root context as follow:
 # echo "super $command $args" | /vsys/ipfw-be 0
@@ -461,7 +432,6 @@ do_super() { # $arguments...
 	esac
 }
 
-#
 # refresh the rule timeout
 do_refresh() { # slice_id type arg timeout
     local ipfw_pipe_in ipfw_pipe_out pipe_index 
@@ -476,13 +446,12 @@ do_refresh() { # slice_id type arg timeout
 
     [ "$TEST" = "1" ] && return
     # update the database with the new timeout value
-    ( grep -v -- "^${slice_id} ${type} ${arg} " $DBFILE;  \
+    ( grep -iv -- "^${slice_id} ${type} ${arg} " $DBFILE;  \
 	echo "${slice_id} ${type} ${arg} ${ipfw_rule} ${pipe_index} ${timeout}" ) > ${DBFILE}.tmp
     mv ${DBFILE}.tmp ${DBFILE}
     echo "refreshed timeout for rule ${type} ${arg}"
 }
 
-#
 # process a request.
 # A request is made by a set of arguments formatted as follow:
 #
@@ -528,10 +497,12 @@ process() {
     # Handle special requests: show and delete
     case x"$cmd" in 
     x"config") 
-	[ "$type" = "server" ] && do_config $SLICE_ID $timeout $type $args && return 0
-	[ "$type" = "client" ] && do_config $SLICE_ID $timeout $type $args && return 0
-	[ "$type" = "service" ] && do_config $SLICE_ID $timeout $type $args && return 0
-	abort "'config' should be followed by {server|client|service}"
+	case x"$type" in 
+		xserver|xSERVER|xclient|xCLIENT|xservice|xSERVICE)
+			do_config $SLICE_ID $timeout $type $args && return 0
+		;;
+	esac
+	abort "'config' should be followed by {CLIENT|SERVER|SERVICE}"
 	;;
     x"delete") 
 	do_delete 1 $SLICE_ID $type $args
@@ -571,6 +542,7 @@ do_config() { # slice_id timeout type arg IN pipe_conf OUT pipe_conf
     local timeout=$1; shift
     local type=$1; shift
     local arg=$1; shift	# XXX addr not yet implemented
+    local p h; 		# port and optional hostname
 
     [ "$1" != "IN" ] && abort "Missing addr:port, or IN requested"
     shift
@@ -596,10 +568,29 @@ do_config() { # slice_id timeout type arg IN pipe_conf OUT pipe_conf
     CONFIG_PIPE_OUT="$i"	# XXX local ?
     [ "$CONFIG_PIPE_OUT" = "" ] && abort "Missing pipe out configuration"
 
+
+    # process the argument (port and hostname are separated by a @)
+    # split the argument, and prepare the remote host configuration string
+    p=`echo $arg | cut -s -d "@" -f1-`	# empty it there is no separator
+    if [ "$p" = "" ] ; then
+	p=$arg
+    else
+	p=`echo $arg | cut -d "@" -f1`
+	h=`echo $arg | cut -d "@" -f2`
+    fi
+
+    # A port value is mandatory
+    [ "$p" = "" ] && abort "A port value is mandatory."
+
+    # SERVICE do not support remote hostname filtering
+    [ $type = "service" ] && [ "$h" != "" ] && \
+	abort "The service configuration do not support filtering remote hostnames."
+
     debug "Configuration Required:"
     debug "slice_id: $SLICE_ID"
     debug "type: $type"
-    debug "arg: $arg"
+    debug "full arg: $arg"
+    debug "mandatory port(s): $p optional hostname(s): $h"
     debug "timeout: $timeout"
     debug "IN: $CONFIG_PIPE_IN"
     debug "OUT: $CONFIG_PIPE_OUT"
@@ -659,27 +650,36 @@ hook_call() {
 do_help() {
 	cat << EOF
 Usage:
-        ./neconfig [SERVER|CLIENT|SERVICE] port [-t timeout]    \
+        ./neconfig {CLIENT|SERVER|SERVICE} arg [-t timeout]    \
                 IN <pipe in configuration> OUT <pipe out configuration>
-        ./netconfig show [rules|pipes]
-        ./netconfig delete [SERVER|CLIENT|SERVICE] port
-        ./netconfig refresh [-t timeout] [SERVER|CLIENT|SERVICE] port
+        ./netconfig show {rules|pipes}
+        ./netconfig delete {CLIENT|SERVER|SERVICE} arg
+        ./netconfig refresh [-t timeout] {CLIENT|SERVER|SERVICE} arg
 
-We assume three type of connections
-  SERVER we know the local port P, and do the
-       bind/listen/accept on the local socket.
-               pipe_in in dst-port P
-               pipe_out out src-port P
+We support three modes of operation:
 
-  CLIENT we know the remote port P, and do a connect to it
-       (src and dst are swapped wrt the previous case)
-               pipe_in in src-port P
-               pipe_out out dst-port P
+  CLIENT programs on the node connect to remote ports
+	and/or addresses. Emulation intercepts traffic
+	involving those ports/addresses
 
-  SERVICE we run a server on local port P, and also connect
-       from local clients to remote servers on port P.
-               pipe_in in { dst-port P or src-port P }
-               pipe_out out { src-port P or dst-port P }
+  SERVER programs on the node listen on specific ports.
+	Emulation intercepts traffic on those ports,
+	optionally limited to specific client addresses.
+
+  SERVICE the node runs both clients and servers,
+	we can only specify the ports on which emulation
+	is configured.
+
+  'arg' has the form PORTLIST[@ADDRLIST], where ADDRLIST is
+  optional and only supported for CLIENT and SERVER modes.
+  PORTLIST and ADDRLIST can be specified as any valid port
+  or address specifier in ipfw, e.g.
+    - a single value		443 or 10.20.30.40/24
+    - a comma-separated list	1111,2222,3333 1.2.3.4,5.6.7.8
+    - a range			1111-2222 (only for ports)
+  Addresses can also be specified as symbolic hostnames, and
+  they are resolved when the rule is installed.
+  Note that they always indicate the remote endpoint.
 
   On a given port a user can have one CLIENT and/or one SERVER
   configuration or one SERVICE configuration.
@@ -688,13 +688,15 @@ We assume three type of connections
   When a CLIENT or SERVER configuration is installed any existing
   SERVICE configuration on the same port is removed.
 
-The pipe configuration, both for the upstream and downstream link,
-follow the dummynet syntax. A quick and not exaustive example
+The pipe's configuration, both for the upstream and downstream link,
+follows the dummynet syntax. A quick and not exaustive example
 of the parameters that can be used to configure the delay,
 the bandwidth and the packet loss rate for a link follow:
 
         IN|OUT delay 100ms bw 1Mbit/s plr 0.1
 
+The profile file, if present, should be located into the sliver's
+root directory.
 The full documentation is on the manpage[1].
 
 The timeout value follow the linux 'date' command format[2]
@@ -709,15 +711,45 @@ and can be specified as follow:
 EOF
 }
 
-# ALLOCATION OF RULES AND PIPES
-# The ruleset is composed by different sections, as follow:
-# - a first set of rules is reserved and is configurable by
+#--- DOCUMENTATION AND INTERNAL ARCHITECTURE ---
+#
+# When a user configures an emulated link, we need to allocate
+# two pipes and one ipfw rule number to store the parameters.
+# Reconfigurations of existing links reuse the previous resources.
+# We keep track of all resources (pipes, rules and blocks of rules)
+# in a database stored in a text file, see DATABASE FORMAT below.
+#
+# Pipes are allocated in pairs. In the database each pair is numbered
+# from PIPE_MIN to PIPE_MAX. The actual pipe numbers for each pair are
+#
+#	ipfw_pipein = IPFW_PIPE_MIN + 2*(pipe_index-1)
+#	ipfw_pipeout = ipfw_pipein + 1
+#
+# The rules number is allocated within a block of M consecutive rules
+# for each slice. The block is allocated at the first configuration
+# of an emulated link, and deallocated when the last link is removed.
+# In the database, blocks are numbered from BLOCK_MIN to BLOCK_MAX,
+# and the range of rules for a given block_index is
+#
+#	ipfw_min_rule = RULE_BASE
+#	ipfw_max_rule = RULE_BASE + ((M-1)*block_index) -1
+#
+# All lookups, and the block allocation, are done in find_allocate().
+# The rule_number and pipe_index are written in the database
+# by add_rule() after checking the correctness of the request.
+#
+#
+#--- RULESET STRUCTURE ---
+# The ruleset is made of different sections, as follows:
+# - an initial block of rules, reserved and configurable by
 #   the root context only;
-# - the skipto rule (S), used to optimize the slice rule search;
-# - a second block of reserved rules;
-# - a default (D) rule for the generic configuration;
-# - the slice reserved rules, a block of M rules for each slice;
-# - the firewall default rule.
+# - a skipto rule (S), used to jump directly to the block
+#   associated with a given slice;
+# - a second block of reserved rules, to catch remaining traffic.
+#   This ends with rule number D which is an 'accept all';
+# - after D, we have a block of M rule numbers for each slice.
+#   Each of these blocks ends with an 'accept all' rule;
+# - finally, rule 65535 is the firewall's default rule.
 #
 # To summarize:
 #	1...S-1	first block of reserved rules
@@ -729,40 +761,36 @@ EOF
 #	RULE_BASE+M <block of M entry for second user ...>
 #	...
 #
-# Out of 64k rules, we allocate a block of M=50 consecutive
-# rules to each slice using emulation. Within this block,
-# each configuration uses one rule number and two pipes.
+#--- DATABASE FORMAT ---
+# The database is stored in a text file, and contains one record per
+# line with the following structure
 #
-# Pipes are allocated starting from PIPE_BASE, a couple
-# of pipes for each configuration.
-#
-# DATABASE FORMAT
-# The database is stored on a file, and contains
-# one line per record with this general structure
 #	XID	TYPE	arg1	arg2	...
-# whitespace separates the fields. arg1, arg2, ...
-# have different meaning depending on the type.
+#
+# Whitespace separates the fields. arg1, arg2, ... have different
+# meaning depending on the TYPE. XID is the slice ID.
 #
 # In the database we have the following records:
-# - one entry for each slice that has active emulation entries.
-#   For each of these slices we reserve a block of M ipfw rules
-#   starting at some RULE_BASE rule number.
-#   The database entry for this info has the form
+# - one entry of type BLOCK for each slice with configured links.
+#   This entry represents the block_index of the block of M ipfw
+#   rules allocated to the slice, as follows:
+#
 #	XID	BLOCK	block_index
-#   where blocks are numbered sequentially from 1.
-#   The actual ipfw rule numbers for the block are the M rules starting at:
-#	 IPFW_RULE_MIN + (M-1)*(block_number)
+#   (BLOCK_MIN <= block_index <= BLOCK_MAX)
 #
-# - one entry for each predefined config (CLIENT, SERVER, SERVICE).
+# - one entry for each link (CLIENT, SERVER, SERVICE).
 #   The database entry for this info has the form
-#	XID	{CLIENT|SERVER|SERVICE}	arg	ipfw_rule pipe_index
-#   ipfw_rule is the unique ipfw rule number used for this configuration
-#   (it must be within the block of M rule indexes allocated to the slice)
-#   pipe_index is the index of the couple of pipes used for the
-#   configuration. pipe_index starts from 1. The actual pipes are
-#   ipfw_pipein = IPFW_PIPE_MIN + 2*(pipe_index-1)
-#   ipfw_pipeout = ipfw_pipein + 1
 #
+#	XID {CLIENT|SERVER|SERVICE} arg ipfw_rule pipe_index timeout
+# 
+#   'TYPE' reflects the configuration mode;
+#   'arg' is PORTLIST@ADDRLIST and is used as a search key together
+#	with the XID and TYPE;
+#   'ipfw_rule' is the unique ipfw rule number used for this
+#	emulated link. It must be within the block of M rule numbers
+#	allocated to the slice;
+#   'pipe_index' is the index of the pair of pipes used for the
+#	configuration;
 
 #-- main starts here
 debug "--- $0 START for $SLICENAME ---"
@@ -774,7 +802,7 @@ debug "--- $0 START for $SLICENAME ---"
 read REQ			# read one line, ignore the rest
 set_verbose ${REQ}		# use inital -v if present
 set_test ${REQ}		# use inital -t if present
-REQ="`filter ${REQ}`"	# remove -v and -t and invalid chars
+REQ="`filter ${REQ}`"	# remove -v and -q and invalid chars
 debug "--- processing <${REQ}>"
 acquire_lock			# critical section
 process ${REQ}
