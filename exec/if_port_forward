@@ -12,7 +12,14 @@ chomp($dst_port);
 
 die ("Src and dst ports need to be numbers") if (($src_port=~/[^0-9]/) || ($src_port=~/[^0-9]/));
 
-$IPTABLES_CMD="/sbin/iptables -t nat -A PREROUTING -m tcp -p tcp -d $slice_ip --dport $src_port -j DNAT --to-destination $slice_ip:$dst_port";
-print "Invoking port forwarding command: $IPTABLES_CMD\n";
-system($IPTABLES_CMD);
+$IPTABLES_CMD_1="/sbin/iptables -t nat -D PREROUTING -m tcp -p tcp -d $slice_ip --dport $src_port -j DNAT --to-destination $slice_ip:$dst_port";
+
+$IPTABLES_CMD_2="/sbin/iptables -t nat -A PREROUTING -m tcp -p tcp -d $slice_ip --dport $src_port -j DNAT --to-destination $slice_ip:$dst_port";
+
+print "Removing any previous instances of this rule: $IPTABLES_CMD_1\n";
+system($IPTABLES_CMD_1);
+
+print "Adding forwarding rule: $IPTABLES_CMD_2\n";
+system($IPTABLES_CMD_2);
+
 print "Done.\n";
