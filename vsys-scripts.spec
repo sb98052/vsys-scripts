@@ -8,7 +8,7 @@
 
 %define name vsys-scripts
 %define version 0.95
-%define taglevel 15
+%define taglevel 16
 
 %define release %{taglevel}%{?pldistro:.%{pldistro}}%{?date:.%{date}}
 
@@ -54,6 +54,10 @@ rm -rf $RPM_BUILD_ROOT
 %postun
 
 %changelog
+* Fri Apr 30 2010 Sapan Bhatia <sapanb@cs.princeton.edu> - vsys-scripts-0.95-16
+- Added if_port_forward script to enable slices to forward ports for their
+- allocated IP addresses.
+
 * Wed Mar 03 2010 Talip Baris Metin <Talip-Baris.Metin@sophia.inria.fr> - vsys-scripts-0.95-15
 - - hostname filter and updated documentation for ipfw scripts - Marta
 - - vsys script for letting users to set the Type of Services(ToS) byte in the IPv4 header - Caglar
