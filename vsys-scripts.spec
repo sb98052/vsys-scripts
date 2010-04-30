@@ -8,7 +8,7 @@
 
 %define name vsys-scripts
 %define version 0.95
-%define taglevel 16
+%define taglevel 17
 
 %define release %{taglevel}%{?pldistro:.%{pldistro}}%{?date:.%{date}}
 
@@ -54,6 +54,9 @@ rm -rf $RPM_BUILD_ROOT
 %postun
 
 %changelog
+* Fri Apr 30 2010 Sapan Bhatia <sapanb@cs.princeton.edu> - vsys-scripts-0.95-17
+- Tweak to if_port_forward script.
+
 * Fri Apr 30 2010 Sapan Bhatia <sapanb@cs.princeton.edu> - vsys-scripts-0.95-16
 - Added if_port_forward script to enable slices to forward ports for their
 - allocated IP addresses.
