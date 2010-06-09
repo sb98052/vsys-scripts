@@ -15,7 +15,7 @@
 #include <linux/if.h>
 #include <linux/if_tun.h>
 
-#define VSYS_TUNTAP "/vsys/local_fd_tuntap.control"
+#define VSYS_TUNTAP "/vsys/fd_tuntap.control"
 
 /* Reads vif FD from "fd", writes interface name to vif_name, and returns vif FD.
  * vif_name should be IFNAMSIZ chars long. */
