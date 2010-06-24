@@ -1,0 +1,11 @@
+#!/bin/sh
+SRC="/home/$1/.ssh/"
+DEST="/vservers/$1/dot_ssh"
+
+mkdir -p $DEST &> /dev/null
+
+mount | grep "on $DEST type" > /dev/null
+if [ $? -ne 0 ]; then
+   /bin/mount --bind -o ro $SRC $DEST > /dev/null
+fi
+
