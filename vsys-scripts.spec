@@ -8,7 +8,7 @@
 
 %define name vsys-scripts
 %define version 0.95
-%define taglevel 17
+%define taglevel 18
 
 %define release %{taglevel}%{?pldistro:.%{pldistro}}%{?date:.%{date}}
 
@@ -54,6 +54,9 @@ rm -rf $RPM_BUILD_ROOT
 %postun
 
 %changelog
+* Fri Jun 25 2010 Sapan Bhatia <sapanb@cs.princeton.edu> - vsys-scripts-0.95-18
+- Switch fd_tuntap to 2.6.27.
+
 * Fri Apr 30 2010 Sapan Bhatia <sapanb@cs.princeton.edu> - vsys-scripts-0.95-17
 - Tweak to if_port_forward script.
 
