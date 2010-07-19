@@ -8,7 +8,7 @@
 
 %define name vsys-scripts
 %define version 0.95
-%define taglevel 19
+%define taglevel 20
 
 %define release %{taglevel}%{?pldistro:.%{pldistro}}%{?date:.%{date}}
 
@@ -54,6 +54,9 @@ rm -rf $RPM_BUILD_ROOT
 %postun
 
 %changelog
+* Mon Jul 19 2010 Baris Metin <Talip-Baris.Metin@sophia.inria.fr> - vsys-scripts-0.95-20
+- fix dotsshmount
+
 * Thu Jul 01 2010 Baris Metin <Talip-Baris.Metin@sophia.inria.fr> - vsys-scripts-0.95-19
 - change dotsshmount's mount point
 
