@@ -1,0 +1,76 @@
+#!/usr/bin/perl
+
+use strict;
+
+$|=1;
+
+my $slicename;
+my $portnumber;
+my $ipaddress;
+
+$slicename = $ARGV[0];
+$portnumber = <STDIN>;
+$ipaddress = <STDIN>;
+
+chop($portnumber);
+chop($ipaddress);
+
+if (-f "/dev/shm/rawtcp-$slicename") {
+	print "Sorry, only 1 port reservation is allowed per slice. You reserved ".`cat /dev/shm/rawtcp-$slicename`;
+}
+
+if ($ipaddress!~/^\d+\.\d+\.\d+\.\d+/) {
+        die("$ipaddress is not an ip address");
+}
+
+if ($portnumber!~/^\d+$/) {
+        die("$portnumber is not a port number");
+}
+
+$portnumber=int($portnumber);
+open CMD1,"vcontext --ctx 1 --migrate -- ncontext --nid 1 --migrate fuser -n tcp $portnumber 2>/dev/null |";
+my @f = <CMD1>;
+my $fuser = join '',@f;
+$fuser=~s/\s//g;
+close CMD1;
+
+if ($fuser) {
+	open CMD2,"chcontext --ctx 1 -- cat /proc/$fuser/vinfo|";
+
+	my $vinfo = <CMD2>;
+	my @userinfo;
+	@userinfo = split /\s/,$vinfo;
+	my $uid = $userinfo[1];
+	my $slice_id = `id -u $slicename`;
+	chop($slice_id);
+
+	if ($slice_id eq $uid) {
+		my $default_route = `ip route get $ipaddress`;
+		my $dev;
+		$default_route =~ /dev ([^\s]+)/;
+		$dev = $1;
+		if ($dev !~ /$uid/) {
+			print $ipaddress;
+			print $default_route;
+			die("Sorry, you don't own the next hop for that route, which is $dev");
+		}
+		
+		#### If we made it here, it means:
+		#### 1. The user is bound to the desired port, which is in the 61000+ range.
+		#### 2. There is a local device for the supplied IP address.
+		#### 3. The calling user owns that device.
+		####
+		#### Next: Bridge the port with the device
+
+		my $iptables_cmd = "iptables -t nat -A PREROUTING -m tcp -p tcp --dport $portnumber -j DNAT --to $ipaddress:$portnumber";
+		system($iptables_cmd);
+		system("echo $portnumber > /dev/shm/rawtcp-$slicename");
+		print "Port reservation commands executed";
+	}
+	else {
+		print "$portnumber is taken by somebody else, sorry";
+	}
+	close CMD2;
+} else {
+	print "Please bind to $portnumber first."
+}
