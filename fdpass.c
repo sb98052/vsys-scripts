@@ -41,6 +41,7 @@ int send_fd(int sock_fd, int fd)
 	while ((retval = sendmsg(sock_fd, &msg, 0)) == -1 && errno == EINTR);
 	if (retval != 1) {
 		perror("sending file descriptor");
+        fprintf(stderr,"File descriptor: %d", sock_fd);
 		return -1;
 	}
 	return 0;

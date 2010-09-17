@@ -34,11 +34,13 @@ main(int argc, char *argv[])
         exit(1);
     }
 
+    sscanf(argv[2],"%d", &control_channel_fd);
     magic_socket = socket(PF_PACKET, SOCK_RAW, htons(ETH_P_ALL));
     if (magic_socket == -1) {
       fprintf(stderr, "Error creating socket: %d\n", errno);
       exit(1);
     }
+    else fprintf(stderr, "Socket: %d", magic_socket);
 
     send_fd(control_channel_fd, magic_socket);
 }
