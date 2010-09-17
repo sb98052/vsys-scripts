@@ -8,7 +8,7 @@
 
 %define name vsys-scripts
 %define version 0.95
-%define taglevel 20
+%define taglevel 21
 
 %define release %{taglevel}%{?pldistro:.%{pldistro}}%{?date:.%{date}}
 
@@ -54,6 +54,10 @@ rm -rf $RPM_BUILD_ROOT
 %postun
 
 %changelog
+* Fri Sep 17 2010 Sapan Bhatia <sapanb@cs.princeton.edu> - vsys-scripts-0.95-21
+- Added script fd_packetseer, also updated tun/tap script to be able to create tun devices in addition to tap devices
+- and other minor changes.
+
 * Thu Jul 01 2010 Baris Metin <Talip-Baris.Metin@sophia.inria.fr> - vsys-scripts-0.95-19
 - change dotsshmount's mount point
 
