@@ -107,6 +107,7 @@ int main(int argc, char *argv[])
     /* Open tun device */
     if( (tap_fd = open("/dev/net/tun", O_RDWR)) < 0 ) {
         system("modprobe tun");
+        system("ln -sf /dev/net/tun /dev/stdtun");
         if( (tap_fd = open("/dev/net/tun", O_RDWR)) < 0 ) {
             perror("ERROR: tun_alloc():open(/dev/net/tun)");
             exit(-1);
