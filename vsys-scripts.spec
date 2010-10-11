@@ -8,7 +8,7 @@
 
 %define name vsys-scripts
 %define version 0.95
-%define taglevel 21
+%define taglevel 22
 
 %define release %{taglevel}%{?pldistro:.%{pldistro}}%{?date:.%{date}}
 
@@ -54,6 +54,10 @@ rm -rf $RPM_BUILD_ROOT
 %postun
 
 %changelog
+* Mon Oct 11 2010 Sapan Bhatia <sapanb@cs.princeton.edu> - vsys-scripts-0.95-22
+- vif_up has now been modified with the ability to create tap devices and to be able to SNAT over randomly selected
+- ports. Thanks to Matthias Goerner for his help developing and testing these changes.
+
 * Fri Sep 17 2010 Sapan Bhatia <sapanb@cs.princeton.edu> - vsys-scripts-0.95-21
 - Added script fd_packetseer, also updated tun/tap script to be able to create tun devices in addition to tap devices
 - and other minor changes.
