@@ -62,6 +62,9 @@ rm -rf $RPM_BUILD_ROOT
 - Added script fd_packetseer, also updated tun/tap script to be able to create tun devices in addition to tap devices
 - and other minor changes.
 
+* Mon Jul 19 2010 Baris Metin <Talip-Baris.Metin@sophia.inria.fr> - vsys-scripts-0.95-20
+- fix dotsshmount
+
 * Thu Jul 01 2010 Baris Metin <Talip-Baris.Metin@sophia.inria.fr> - vsys-scripts-0.95-19
 - change dotsshmount's mount point
 

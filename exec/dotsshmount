@@ -1,6 +1,6 @@
 #!/bin/sh
-SRC="/home/$1/.ssh/"
-DEST="/vservers/$1/home/$1/.ssh/"
+SRC="/home/$1/.ssh"
+DEST="/vservers/$1/home/$1/.ssh"
 
 mkdir -p $DEST &> /dev/null
 
