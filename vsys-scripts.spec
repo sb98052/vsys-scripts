@@ -8,7 +8,7 @@
 
 %define name vsys-scripts
 %define version 0.95
-%define taglevel 23
+%define taglevel 24
 
 %define release %{taglevel}%{?pldistro:.%{pldistro}}%{?date:.%{date}}
 
@@ -54,6 +54,9 @@ rm -rf $RPM_BUILD_ROOT
 %postun
 
 %changelog
+* Fri Oct 15 2010 Sapan Bhatia <sapanb@cs.princeton.edu> - vsys-scripts-0.95-24
+- Add executable tag to vif_up to let it run.
+
 * Fri Oct 15 2010 Sapan Bhatia <sapanb@cs.princeton.edu> - vsys-scripts-0.95-23
 - Added execute attribute to vif_up, the absence of which prevented it from being used.
 
