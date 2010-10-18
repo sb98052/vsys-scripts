@@ -8,7 +8,7 @@
 
 %define name vsys-scripts
 %define version 0.95
-%define taglevel 24
+%define taglevel 25
 
 %define release %{taglevel}%{?pldistro:.%{pldistro}}%{?date:.%{date}}
 
@@ -54,6 +54,9 @@ rm -rf $RPM_BUILD_ROOT
 %postun
 
 %changelog
+* Mon Oct 18 2010 S.Çağlar Onur <caglar@cs.princeton.edu> - vsys-scripts-0.95-25
+- support newer kernels
+
 * Fri Oct 15 2010 Sapan Bhatia <sapanb@cs.princeton.edu> - vsys-scripts-0.95-24
 - Add executable tag to vif_up to let it run.
 
