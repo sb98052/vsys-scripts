@@ -8,7 +8,7 @@ if [ $VERSION -ge 27 ]; then
     # FIXME: ro bind mounts and namespace...
     mount | grep "on $DEST type" > /dev/null
     if [ $? -eq 1 ]; then
-        vnamespace -e pl_netflow -- mount -o bind /var/local/fprobe $DEST
+        vnamespace -e $1 -- mount -o bind /var/local/fprobe $DEST
     fi
 else
     mount | grep "on $DEST type" > /dev/null
