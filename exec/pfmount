@@ -1,10 +1,18 @@
 #!/bin/sh
 # Mount the planetflow directory in a slice
 
-#mount --bind /usr/local/fprobe /vservers/$1/pf
-# changed from request of Faiyaz
+VERSION=`uname -r | awk -F"." '{print $3}'`
 DEST="/vservers/$1/pf"
-mount | grep "on $DEST type" > /dev/null
-if [ $? -eq 1 ]; then
-    mount --bind /var/local/fprobe -o ro $DEST
+
+if [ $VERSION -ge 27 ]; then
+    # FIXME: ro bind mounts and namespace...
+    mount | grep "on $DEST type" > /dev/null
+    if [ $? -eq 1 ]; then
+        vnamespace -e pl_netflow -- mount -o bind /var/local/fprobe $DEST
+    fi
+else
+    mount | grep "on $DEST type" > /dev/null
+    if [ $? -eq 1 ]; then
+        mount --bind /var/local/fprobe -o ro $DEST
+    fi
 fi
