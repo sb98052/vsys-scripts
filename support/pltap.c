@@ -18,7 +18,8 @@ int main(void)
 
     printf("Sleeping for 120 secs...\n");
 
-    sleep(120);
+    while (1)
+        sleep(120);
 
     printf("Closing\n");
 
