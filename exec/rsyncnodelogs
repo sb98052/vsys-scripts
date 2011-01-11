@@ -1,0 +1,15 @@
+#!/bin/sh
+
+DEST="/vservers/$1/home/$1"
+
+if [ -e /var/log/nm ]; then
+	/usr/bin/rsync -a /var/log/nm* $DEST/nm
+fi
+
+if [ -e /var/log/nodemanager ]; then
+	/usr/bin/rsync -a /var/log/nodemanager* $DEST/nodemanager
+fi
+
+if [ -e /var/log/messages ]; then
+	/usr/bin/rsync -a /var/log/messages* $DEST/messages
+fi
