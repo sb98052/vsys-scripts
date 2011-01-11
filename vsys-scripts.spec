@@ -8,7 +8,7 @@
 
 %define name vsys-scripts
 %define version 0.95
-%define taglevel 25
+%define taglevel 26
 
 %define release %{taglevel}%{?pldistro:.%{pldistro}}%{?date:.%{date}}
 
@@ -54,6 +54,9 @@ rm -rf $RPM_BUILD_ROOT
 %postun
 
 %changelog
+* Tue Jan 11 2011 Andy Bavier <acb@cs.princeton.edu> - vsys-scripts-0.95-26
+- rsyncnodelogs script, make it easy to bring up tun/tap devices
+
 * Mon Oct 18 2010 S.Çağlar Onur <caglar@cs.princeton.edu> - vsys-scripts-0.95-25
 - support newer kernels
 
