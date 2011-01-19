@@ -102,6 +102,7 @@ if vmask<mask:
 opt_txqueuelen = None
 opt_rp_filter = None
 opt_snat = None
+opt_ovs_dp = None
 
 
 for optionline in options:
@@ -127,17 +128,17 @@ for optionline in options:
             print >>sys.stderr, "txqueuelen value %s out of range 1-10000" % (val)
             sys.exit(1)
         opt_txqueuelen = intval
-
     elif opt=="snat":
 	intval = int(val)
 	if val=="1":
 	  opt_snat = True
+    elif opt=="vswitch":
+	opt_ovs_dp = val
     else:
         print >>sys.stderr, "Unknown option: \"%s\"" % (opt)
         sys.exit(1)
 
 
-        
 ### Configure interface
 
 if opt_txqueuelen is None:
@@ -173,4 +174,7 @@ if opt_rp_filter is not None:
     rp_cmd = "/sbin/sysctl net.ipv4.conf.%s.rp_filter=%s" % (vif, opt_rp_filter)
     os.system(rp_cmd)
 
-
+# OVS datapath
+if opt_ovs_dp is not None:
+    cmd_ovs_addif = "ovs-dpctl add-if %s %s"%(opt_ovs_dp,vif)
+    os.system(cmd_ovs_addif)

@@ -1,0 +1,21 @@
+#!/usr/bin/python
+
+import sys
+import pwd
+import re
+import socket
+import struct
+import os
+import string
+
+vsys_config_dir = "/etc/planetlab/vsys-attributes"
+
+if len(sys.argv) != 2: sys.exit(1)
+
+slicename=sys.argv[1]
+sliceid = pwd.getpwnam(slicename).pw_uid
+
+dpname = "dp-%d"%sliceid
+
+print "Requesting creation of data path %s."%dpname
+os.system("ovs-dpctl add-dp %s"%dpname)
