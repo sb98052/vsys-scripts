@@ -8,7 +8,7 @@
 
 %define name vsys-scripts
 %define version 0.95
-%define taglevel 26
+%define taglevel 27
 
 %define release %{taglevel}%{?pldistro:.%{pldistro}}%{?date:.%{date}}
 
@@ -54,6 +54,9 @@ rm -rf $RPM_BUILD_ROOT
 %postun
 
 %changelog
+* Wed Feb 02 2011 Thierry Parmentelat <thierry.parmentelat@sophia.inria.fr> - vsys-scripts-0.95-27
+- first draft of new scripts to handle openvswitch
+
 * Tue Jan 11 2011 Andy Bavier <acb@cs.princeton.edu> - vsys-scripts-0.95-26
 - rsyncnodelogs script, make it easy to bring up tun/tap devices
 
