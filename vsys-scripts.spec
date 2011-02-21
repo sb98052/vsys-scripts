@@ -8,7 +8,7 @@
 
 %define name vsys-scripts
 %define version 0.95
-%define taglevel 27
+%define taglevel 28
 
 %define release %{taglevel}%{?pldistro:.%{pldistro}}%{?date:.%{date}}
 
@@ -54,6 +54,9 @@ rm -rf $RPM_BUILD_ROOT
 %postun
 
 %changelog
+* Mon Feb 21 2011 Sapan Bhatia <sapanb@cs.princeton.edu> - vsys-scripts-0.95-28
+- Bug fix for 2.6.27+ kernels
+
 * Wed Feb 02 2011 Thierry Parmentelat <thierry.parmentelat@sophia.inria.fr> - vsys-scripts-0.95-27
 - first draft of new scripts to handle openvswitch
 
