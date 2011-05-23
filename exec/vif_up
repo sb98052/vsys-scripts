@@ -139,6 +139,7 @@ for optionline in options:
             socket.inet_aton(opt_pointopoint)
         except socket.error,e:
             print >>sys.stderr, "pointopoint: %s" % (e,)
+            sys.exit(1)
     elif opt=="vswitch":
         opt_ovs_dp = val
     else:
