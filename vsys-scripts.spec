@@ -8,7 +8,7 @@
 
 %define name vsys-scripts
 %define version 0.95
-%define taglevel 28
+%define taglevel 29
 
 %define release %{taglevel}%{?pldistro:.%{pldistro}}%{?date:.%{date}}
 
@@ -54,6 +54,10 @@ rm -rf $RPM_BUILD_ROOT
 %postun
 
 %changelog
+* Tue Jun 07 2011 Thierry Parmentelat <thierry.parmentelat@sophia.inria.fr> - vsys-scripts-0.95-29
+- vif_down,vif_up: more tidy, pointopoint, and work around ip route get <> oddly returning nothing
+- new vroute
+
 * Mon Feb 21 2011 Sapan Bhatia <sapanb@cs.princeton.edu> - vsys-scripts-0.95-28
 - Bug fix for 2.6.27+ kernels
 
