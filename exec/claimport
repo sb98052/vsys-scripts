@@ -1,0 +1,45 @@
+#!/usr/bin/python
+
+import sys
+import os
+import string
+
+vsys_config_dir = "/etc/planetlab/vsys-attributes"
+slicename=sys.argv[1]
+port_config=os.path.join(vsys_config_dir,slicename,"vsys_portreservation")
+
+ports = open(port_config).read().rstrip()
+(low,high) = map(lambda n:int(n),ports.split('-'))
+
+arglines = map(string.strip, sys.stdin.readlines())
+if len(arglines)<1:
+    print >>sys.stderr, "Insufficient argument lines."
+    sys.exit(1)
+
+port = int(arglines[0]) # interface name
+
+def do_kill(p):
+   if (p):
+       slice_info = os.popen('chcontext --ctx 1 cat /proc/%s/vinfo'%p).readlines()
+       xid_info = slice_info[0]
+       slice_id = xid_info.split()[1]
+       os.system("vkill %s"%p)
+       slice = os.popen('getent passwd %s'%slice_id).read().split(':')[0]
+       mail_cmd = 'mail -s "PlanetLab notification" %s@slices.planet-lab.org -c %s@slices.planet-lab.org'%(slice,slicename)
+       f = os.popen(mail_cmd,'w')
+       f.write('Hi,\nOne of your processes on PlanetLab was terminated because you were using port %s, which is assigned to %s.'%(port,slicename))
+       f.close()
+
+
+if (low<=port<=high):
+   fuser_cmd = "ncontext --nid 1 --migrate -- chcontext --ctx 1 fuser -n tcp %d 2> /dev/null"%port
+   process_udp = os.popen(fuser_cmd).read().rstrip()
+
+   fuser_cmd = "ncontext --nid 1 --migrate -- chcontext --ctx 1 fuser -n udp %d 2> /dev/null"%port
+   process_tcp = os.popen(fuser_cmd).read().rstrip()
+
+   do_kill(process_tcp.lstrip())
+   do_kill(process_udp.lstrip())
+   
+else:
+    print "%d is not in your range"%port
