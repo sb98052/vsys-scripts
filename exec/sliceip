@@ -2,7 +2,6 @@
 #
 # Giovanni Di Stasi
 # Copyright (C) 2009 UniNa
-# $Id$
 #
 # This is a backend script to be used with
 # the vsys system. It allows to define and 
@@ -493,6 +492,3 @@ case "$command" in
 esac
 
 exit 0
-
-
-
