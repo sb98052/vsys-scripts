@@ -5,9 +5,20 @@
 # Gets slice name as argv[1]
 # Takes remaining args on stdin:
 #   - Interface name (eg [tun|tap]<sliceid>-<n>)
-#   - IP address (eg 1.2.3.4)
+#   - (private) IP address (eg 1.2.3.4)
 #   - Netmask (as int, e.g. 24)
 #   - Followed by options as name=value pairs
+#
+# Options:
+#   - pointopoint=IP: other endpoint's (private) IP (sets routing)
+#   - snat=1: enables SNAT ip rules
+#   - txqueuelen=N: sets TX queue
+#   - gre=<> : enable GRE tunnelling - several formats supported
+#   -   gre=true|yes|name : computes GRE key as a hash of slice name (so it's valid across federations)
+#   -   gre=id            : uses for GRE key the slice id (the one from the myplc database)
+#   -   gre=somestring    : computes GRE key as a hash of the provided string
+#   -   gre=somekey       : use the provided key as is
+#   - remote=IP : when using GRE, the (public) IP for the remote endpoint
 
 import sys
 import pwd
@@ -23,6 +34,7 @@ if len(sys.argv) != 2: sys.exit(1)
 
 # VSYS scripts get slicename as $1
 slicename=sys.argv[1]
+# the local xid for this slice
 sliceid = pwd.getpwnam(slicename).pw_uid
 
 netblock_config=os.path.join(vsys_config_dir,slicename,"vsys_vnet")
@@ -104,6 +116,8 @@ opt_rp_filter = None
 opt_snat = None
 opt_ovs_dp = None
 opt_pointopoint = None
+opt_gre = None
+opt_gre_remote = None
 
 
 for optionline in options:
@@ -138,13 +152,57 @@ for optionline in options:
         try:
             socket.inet_aton(opt_pointopoint)
         except socket.error,e:
-            print >>sys.stderr, "pointopoint: %s" % (e,)
+            print >>sys.stderr, "could not parse pointopoint: %s" % (e,)
             sys.exit(1)
     elif opt=="vswitch":
         opt_ovs_dp = val
+    # support several formats, parse later on
+    elif opt=="gre":
+        opt_gre = val
+    elif opt=="remote":
+        opt_gre_remote = val.strip()
+        try:
+            socket.inet_aton(opt_gre_remote)
+        except socket.error,e:
+            print >>sys.stderr, "could not parse remote: %s" % (e,)
+            sys.exit(1)
     else:
         print >>sys.stderr, "Unknown option: \"%s\"" % (opt)
         sys.exit(1)
+
+# post processing for gre mode
+if opt_gre:
+    if not opt_pointopoint:
+        print >>sys.stderr, "GRE tunnels need a pointopoint address"
+        sys.exit(1)
+    if not opt_gre_remote:
+        print >>sys.stderr, "GRE tunnels need a pointopoint address"
+        sys.exit(1)
+
+    if vif.startswith('tun'):
+        opt_gre_type = 'gre'
+    else:
+        opt_gre_type = 'gretap'
+
+    opt_gre=opt_gre.lower()
+    # helper - keys are expected between 0 and 2**32-1
+    def gre_hash (string):
+        return hash(string) & 0xffffffff
+    # compute gre_key according to option format
+    if opt_gre in ('yes','true','name'):
+        gre_key=gre_hash(slicename)
+    elif opt_gre in ('id','sliceid'):
+        # use slice_id as the key - this is the one from myplc - won't work across federation
+        gre_key = int(open("/etc/vservers/%s/slice_id" % (slicename,),"r").read().strip())
+    elif opt_gre.isdigit():
+        # use as-is
+        gre_key=int(opt_gre)
+    else:
+        # hash the provided string
+        gre_key=gre_hash(opt_gre)
+    ### temporary - debug 
+    ### use ip tunnel show to obtain the key, but it only works with IP over GRE
+    #open('/tmp/%s.key'%vif,'w').write('%s\n'%gre_key)
 
 
 ### Configure interface
@@ -160,17 +218,29 @@ if opt_txqueuelen is not None:
 if opt_pointopoint is not None:
     cmd_ifconfig += " pointopoint %s" % (opt_pointopoint,)
 
-os.system(cmd_ifconfig)
-
 # Add iptables rules (Clearing old ones first, if they exist)
 cmd_iptables_in = "/sbin/iptables -A INPUT -i %s -m mark -m state --state NEW ! --mark %d -j DROP" % (vif, sliceid)
 cmd_iptables_del_in = "/sbin/iptables -D INPUT -i %s -m mark -m state --state NEW ! --mark %d -j DROP 2>/dev/null" % (vif, sliceid)
 cmd_iptables_out = "/sbin/iptables -A OUTPUT -o %s -m state --state NEW -m mark ! --mark %d -j DROP" % (vif, sliceid)
 cmd_iptables_del_out = "/sbin/iptables -D OUTPUT -o %s -m state --state NEW -m mark ! --mark %d -j DROP 2>/dev/null" % (vif, sliceid)
 
+# this initial form should work again now, but for some reason on 2.6.27, 'ip route get ...' returns an empty line
+#public_src = os.popen("ip route get 1.1.1.1 | head -1 | awk '{print $7;}'").read().rstrip();
 public_src = os.popen("ifconfig | grep $(ip route | grep default | awk '{print $3}' | awk -F. '{print $1\"[.]\"$2}') | head -1 | awk '{print $2}' | awk -F : '{print $2}'").read().rstrip()
 cmd_iptables_pr = "/sbin/iptables -t nat -A POSTROUTING -s %s/%d -j SNAT --to-source %s --random" % (vip, vmask, public_src)
 cmd_iptables_del_pr = "/sbin/iptables -t nat -D POSTROUTING -s %s/%d -j SNAT --to-source %s --random > /dev/null 2>&1" % (vip, vmask, public_src)
+
+
+if opt_gre:
+    cmd_gre_setup = "modprobe ip_gre ; ip link add %s type %s remote %s local %s ttl 64 csum key %s" % (
+        vif, opt_gre_type, opt_gre_remote, public_src, gre_key )
+    cmd_iptables_gre_pr = "/sbin/iptables -t mangle -A INPUT -i %s -m mark --mark 0 -j MARK --set-mark %s 2>/dev/null" % (
+        vif, int(sliceid))
+
+    os.system(cmd_gre_setup)
+    os.system(cmd_iptables_gre_pr)
+
+os.system(cmd_ifconfig)
 
 os.system(cmd_iptables_del_in)
 os.system(cmd_iptables_in)
@@ -182,18 +252,6 @@ os.system(cmd_iptables_out)
 os.system(cmd_iptables_del_pr)
 if (opt_snat):
     os.system(cmd_iptables_pr)
-    #print cmd_iptables_del_pr
-    #print cmd_iptables_pr
-
-#if opt_pointopoint and vmask < 32:
-#    # Make target vnet masked address
-#    p2p_int = struct.unpack('!L', socket.inet_aton(opt_pointopoint))[0]
-#    vip_vnet = socket.inet_ntoa(
-#        struct.pack('!L', ((p2p_int>>(32-vmask))<<(32-vmask))) )
-#
-#    cmd_routing_p2p = "/sbin/route add -net %s/%d gw %s dev %s" % (vip_vnet, vmask, opt_pointopoint, vif)
-#    print >>sys.stderr, cmd_routing_p2p
-#    os.system(cmd_routing_p2p)
 
 # Process additional options
 if opt_rp_filter is not None:
