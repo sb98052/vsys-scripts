@@ -8,7 +8,7 @@
 
 %define name vsys-scripts
 %define version 0.95
-%define taglevel 31
+%define taglevel 32
 
 %define release %{taglevel}%{?pldistro:.%{pldistro}}%{?date:.%{date}}
 
@@ -54,6 +54,9 @@ rm -rf $RPM_BUILD_ROOT
 %postun
 
 %changelog
+* Mon Oct 03 2011 Sapan Bhatia <sapanb@cs.princeton.edu> - vsys-scripts-0.95-32
+- New script for slices to stream the headers of all packets going out of a node.
+
 * Wed Aug 31 2011 Thierry Parmentelat <thierry.parmentelat@sophia.inria.fr> - vsys-scripts-0.95-31
 - vif_up has support for GRE tunnels
 - sliceip is known to cause kernel crashes with 2.6.32 at least
