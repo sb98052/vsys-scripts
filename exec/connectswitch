@@ -21,7 +21,9 @@ arglines = map(string.strip, sys.stdin.readlines())
 if len(arglines) != 1: sys.exit(1)
 of_server = arglines[0]
 
-if re.match(r'^(tcp|udp):[\d\.]+$', vif) is None: exit(1)
+if re.match(r'^(tcp|udp):[\d\.]+$', of_server) is None:
+    print "Address '%s' is invalid; should look like 'tcp:10.0.5.6'" % of_server
+    exit(1)
 
 print "Requesting creation of data path %s."%dpname
-os.system("ovs-openflowd dp0 tcp:192.168.1.2")
+os.system("ovs-openflowd %s %s" % (dpname, of_server))
