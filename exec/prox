@@ -1,0 +1,37 @@
+#!/usr/bin/python
+
+MAX_LOCKED_MEMSIZE = 1024 * 1024 * 1024  # 1 GB
+SHMMAX = 1024 * 1024 * 1024   # 1 GB
+
+SLICE = "princeton_vcoblitz"
+
+import os
+import sys
+import resource
+
+if __name__ == "__main__":
+
+   # expand lockable memory
+   resource.setrlimit( resource.RLIMIT_MEMLOCK, (MAX_LOCKED_MEMSIZE, MAX_LOCKED_MEMSIZE) )
+  
+   # ensure that shmmax is big enough.
+   os.system( "vspace -e " + SLICE + " --ipc sysctl -w kernel.shmmax=" + str(SHMMAX) )
+   
+   # we'll echo argv into the prox pipe
+   args = sys.stdin.read().split()
+
+   print "args = " + str(args)
+
+   pid = os.fork()
+   if pid == 0:
+      # child
+      print "child forked"
+
+      os.execv( args[0], args )
+      #os.execve( args[0], args, {'LD_LIBRARY_PATH': "/vservers/" + SLICE + "/lib:/vservers/" + SLICE + "/lib64:/vservers/" + SLICE + "/usr/lib:/vservers/" + SLICE + "/usr/lib64"} )
+
+   else:
+      # parent
+      print "pid = " + str(pid)
+      os.wait()
+      sys.exit(0)
