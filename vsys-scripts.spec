@@ -8,7 +8,7 @@
 
 %define name vsys-scripts
 %define version 0.95
-%define taglevel 33
+%define taglevel 34
 
 %define release %{taglevel}%{?pldistro:.%{pldistro}}%{?date:.%{date}}
 
@@ -54,6 +54,9 @@ rm -rf $RPM_BUILD_ROOT
 %postun
 
 %changelog
+* Fri Jan 13 2012 Sapan Bhatia <sapanb@cs.princeton.edu> - vsys-scripts-0.95-34
+- Added a new script from Jude.
+
 * Mon Oct 24 2011 Sapan Bhatia <sapanb@cs.princeton.edu> - vsys-scripts-0.95-33
 - Build fd_netlink, a new script that lets slices stream packet headers
 
