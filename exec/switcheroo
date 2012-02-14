@@ -1,0 +1,13 @@
+#!/bin/sh
+
+RDIR="/vservers/$1/rootfs"
+
+if [ ! -d $RDIR ];
+then
+  echo "Please create a root filesystem in the $RDIR directory"
+else
+  vserver $1 stop
+  mv /vservers/$1 /vservers/_$1
+  mv /vservers/_$1/rootfs /vservers/$1
+  vserver $1 start
+fi
