@@ -8,7 +8,7 @@
 
 %define name vsys-scripts
 %define version 0.95
-%define taglevel 34
+%define taglevel 35
 
 %define release %{taglevel}%{?pldistro:.%{pldistro}}%{?date:.%{date}}
 
@@ -54,6 +54,15 @@ rm -rf $RPM_BUILD_ROOT
 %postun
 
 %changelog
+* Tue Feb 14 2012 Sapan Bhatia <sapanb@cs.princeton.edu> - vsys-scripts-0.95-35
+- Added a script for users to create custom distributions within their slices. Use as follows:
+- mkdir /rootfs;cd /rootfs
+- wget <your distribution tarball>
+- tar xvfz <tarball>
+- [copy in PlanetLab /etc/resolv.conf and /etc/passwd files. mkdir /var/run; mkdir /var/lock]
+- cat /vsys/switcheroo.out &
+- echo 1 > /vsys/switcheroo.in
+
 * Fri Jan 13 2012 Sapan Bhatia <sapanb@cs.princeton.edu> - vsys-scripts-0.95-34
 - Added a new script from Jude.
 
