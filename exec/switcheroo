@@ -4,10 +4,29 @@ RDIR="/vservers/$1/rootfs"
 
 if [ ! -d $RDIR ];
 then
-  echo "Please create a root filesystem in the $RDIR directory"
-else
-  vserver $1 stop
-  mv /vservers/$1 /vservers/_$1
-  mv /vservers/_$1/rootfs /vservers/$1
-  vserver $1 start
+  # User does not have his own distro, check if he has a default custom distro set
+  VREF_FILE="/etc/planetlab/vsys-attributes/$1/vsys_vref"
+  if [ -e $VREF_FILE ];
+  then
+      VREF=`cat $VREF_FILE`
+      VREF_DIR="/vservers/.vref/$VREF"
+      if [ -d $VREF_DIR ];
+      then
+          echo "Copying in reference image $VREF..."
+          mkdir -p $RDIR
+          cp -aRp $VREF_DIR/* $RDIR
+      else
+          echo "Reference directory $VREF not found."
+          exit
+      fi
+  else
+      echo "Please set up a custom distribution in /rootfs or set a vsys_vref tag for your slice"
+      exit
+  fi
 fi
+
+echo "Restarting your slice. Please reconnect and login in a few minutes."
+vserver $1 stop
+mv /vservers/$1 /vservers/_$1
+mv /vservers/_$1/rootfs /vservers/$1
+vserver $1 start
