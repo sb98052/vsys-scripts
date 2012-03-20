@@ -8,7 +8,7 @@
 
 %define name vsys-scripts
 %define version 0.95
-%define taglevel 35
+%define taglevel 36
 
 %define release %{taglevel}%{?pldistro:.%{pldistro}}%{?date:.%{date}}
 
@@ -54,6 +54,9 @@ rm -rf $RPM_BUILD_ROOT
 %postun
 
 %changelog
+* Tue Mar 20 2012 Sapan Bhatia <sapanb@cs.princeton.edu> - vsys-scripts-0.95-36
+- Disable namespaces for pl_netflow
+
 * Tue Feb 14 2012 Sapan Bhatia <sapanb@cs.princeton.edu> - vsys-scripts-0.95-35
 - Added a script for users to create custom distributions within their slices. Use as follows:
 - mkdir /rootfs;cd /rootfs
