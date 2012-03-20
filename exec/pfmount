@@ -1,6 +1,15 @@
 #!/bin/sh
 # Mount the planetflow directory in a slice
 
+# FIXME: if touch operation failes
+if [ ! -e /etc/vservers/nonamespace ]; then
+    touch /etc/vservers/nonamespace
+    if [ $? -eq 0 ]; then
+        vserver pl_netflow stop
+        vserver pl_netflow start
+    fi
+fi
+
 VERSION=`uname -r | awk -F"-" '{print $1;}' | awk -F"." '{print $3}'`
 DEST="/vservers/$1/pf"
 
