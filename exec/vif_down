@@ -10,7 +10,7 @@ import sys
 import pwd
 import os
 import re
-
+import string
 
 if len(sys.argv) != 2: sys.exit(1)
 
@@ -19,9 +19,41 @@ slicename=sys.argv[1]
 sliceid = pwd.getpwnam(slicename).pw_uid
 
 
-# Read interface name
-vif = sys.stdin.readline().strip() # interface name
+arglines = map(string.strip, sys.stdin.readlines())
 
+if len(arglines)<1:
+    print >>sys.stderr, "Insufficient argument lines."
+    sys.exit(1)
+
+vif = arglines[0] # interface name
+
+# Create options list
+if len(arglines)>1:
+    options = arglines[1:]
+else:
+    options = []
+
+opt_delete = False
+
+for optionline in options:
+    if len(optionline)==0: continue
+    try:
+        opt, val = optionline.split('=')
+    except:
+        print >>sys.stderr, "Bad option line: \"%s\"" % (optionline)
+        sys.exit(1)
+
+    if opt=="delete":
+        if val=="0":
+            opt_delete=False
+        elif val=="1":
+            opt_delete=True
+        else:
+            print >>sys.stderr, "rp_filter value invalid: \"%s\"" % (val)
+            sys.exit(1)
+    else:
+        print >>sys.stderr, "Unknown option: \"%s\"" % (opt)
+        sys.exit(1)
 
 # Validate interface name
 if len(vif)>16:
@@ -52,4 +84,5 @@ cmd_ifconfig = "/sbin/ifconfig %s down" % (vif)
 os.system(cmd_ifconfig)
 
 # Delete GRE tunnel (if any)
-os.system(cmd_gre_del)
+if (opt_delete):
+    os.system(cmd_gre_del)
