@@ -1,7 +1,7 @@
 CC=gcc
 CFLAGS=-g -O2
 
-all: dcookie fd_bmsocket fd_udpsocket fd_fusemount fd_tuntap fd_tos fd_packetseer fd_netlink
+all: dcookie fd_bmsocket fd_udpsocket fd_fusemount fd_tuntap fd_tos fd_packetseer fd_netlink fd_bind53
 
 fd_tuntap: fd_tuntap.c
 	gcc fd_tuntap.c -o exec/fd_tuntap
@@ -14,6 +14,9 @@ dcookie: dcookie.c
 
 fdpass.o: fdpass.c
 	gcc -c fdpass.c -o fdpass.o
+
+fd_bind53: fd_bind53.c fdpass.o
+	gcc fd_bind53.c fdpass.o -o exec/fd_bind53
 
 fd_bmsocket: fd_bmsocket.c fdpass.o
 	gcc fd_bmsocket.c fdpass.o -o exec/fd_bmsocket
