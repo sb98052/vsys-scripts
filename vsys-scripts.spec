@@ -8,7 +8,7 @@
 
 %define name vsys-scripts
 %define version 0.95
-%define taglevel 37
+%define taglevel 38
 
 %define release %{taglevel}%{?pldistro:.%{pldistro}}%{?date:.%{date}}
 
@@ -54,6 +54,9 @@ rm -rf $RPM_BUILD_ROOT
 %postun
 
 %changelog
+* Thu Apr 19 2012 Sapan Bhatia <sapanb@cs.princeton.edu> - vsys-scripts-0.95-38
+- This change resolves the pricky issue of bind mounting across namespaces by disabling namespaces altogether.
+
 * Mon Apr 09 2012 Sapan Bhatia <sapanb@cs.princeton.edu> - vsys-scripts-0.95-37
 - A new script that lets slices serve DNS by binding to UDP port 53.
 
