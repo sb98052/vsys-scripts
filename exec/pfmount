@@ -13,15 +13,4 @@ fi
 VERSION=`uname -r | awk -F"-" '{print $1;}' | awk -F"." '{print $3}'`
 DEST="/vservers/$1/pf"
 
-if [ $VERSION -ge 27 ]; then
-    # FIXME: ro bind mounts and namespace...
-    mount | grep "on $DEST type" > /dev/null
-    if [ $? -eq 1 ]; then
-        vnamespace -e $1 -- mount -o bind /var/local/fprobe $DEST
-    fi
-else
-    mount | grep "on $DEST type" > /dev/null
-    if [ $? -eq 1 ]; then
-        mount --bind /var/local/fprobe -o ro $DEST
-    fi
-fi
+mount --bind /var/local/fprobe -o ro $DEST
