@@ -2,11 +2,11 @@
 # Mount the planetflow directory in a slice
 
 # FIXME: if touch operation failes
-if [ ! -e /etc/vservers/nonamespace ]; then
-    touch /etc/vservers/nonamespace
+if [ ! -e /etc/vservers/$1/nonamespace ]; then
+    touch /etc/vservers/$1/nonamespace
     if [ $? -eq 0 ]; then
-        vserver pl_netflow stop
-        vserver pl_netflow start
+        vserver $1 stop
+        vserver $1 start
     fi
 fi
 

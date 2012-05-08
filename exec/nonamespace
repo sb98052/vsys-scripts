@@ -1,0 +1,10 @@
+#!/bin/sh
+# Prevent vserver from unsharing namespaces
+
+if [ ! -e /etc/vservers/$1/nonamespace ]; then
+    touch /etc/vservers/$1/nonamespace
+    if [ $? -eq 0 ]; then
+        vserver $1 stop
+        vserver $1 start
+    fi
+fi
