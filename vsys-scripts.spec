@@ -8,7 +8,7 @@
 
 %define name vsys-scripts
 %define version 0.95
-%define taglevel 38
+%define taglevel 39
 
 %define release %{taglevel}%{?pldistro:.%{pldistro}}%{?date:.%{date}}
 
@@ -54,6 +54,9 @@ rm -rf $RPM_BUILD_ROOT
 %postun
 
 %changelog
+* Tue May 08 2012 Sapan Bhatia <sapanb@cs.princeton.edu> - vsys-scripts-0.95-39
+- prevent vserver from unsharing namespaces
+
 * Thu Apr 19 2012 Sapan Bhatia <sapanb@cs.princeton.edu> - vsys-scripts-0.95-38
 - This change resolves the pricky issue of bind mounting across namespaces by disabling namespaces altogether.
 
