@@ -29,4 +29,12 @@ echo "Restarting your slice. Please reconnect and login in a few minutes."
 vserver $1 stop
 mv /vservers/$1 /vservers/_$1
 mv /vservers/_$1/rootfs /vservers/$1
+mkdir -p /vservers/$1/var/run
+mkdir -p /vservers/$1/proc
+mkdir -p /vservers/$1/var/lock
+grep $1 /vservers/_$1/etc/passwd >> /vservers/$1/etc/passwd
+
+cd /vservers/$1/dev 
+tar cf - /vservers/pl_netflow/dev/* | tar xvf - --strip=3
+
 vserver $1 start
