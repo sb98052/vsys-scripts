@@ -1,0 +1,11 @@
+#!/bin/sh
+
+BASEPATH=/etc/planetlab/vsys-attributes/$1
+if [ -e $BASEPATH ]; then
+cd $BASEPATH
+for KEY in *
+do
+  INNER_KEY=`echo $KEY | cut -d_ -f 2`
+  echo $INNER_KEY": "`cat $BASEPATH/$KEY`
+done
+fi
