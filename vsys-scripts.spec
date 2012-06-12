@@ -8,7 +8,7 @@
 
 %define name vsys-scripts
 %define version 0.95
-%define taglevel 40
+%define taglevel 41
 
 %define release %{taglevel}%{?pldistro:.%{pldistro}}%{?date:.%{date}}
 
@@ -54,6 +54,8 @@ rm -rf $RPM_BUILD_ROOT
 %postun
 
 %changelog
+* Tue Jun 12 2012 Sapan Bhatia <sapanb@cs.princeton.edu> - vsys-scripts-0.95-41
+
 * Wed Jun 06 2012 Sapan Bhatia <sapanb@cs.princeton.edu> - vsys-scripts-0.95-40
 
 * Tue May 08 2012 Sapan Bhatia <sapanb@cs.princeton.edu> - vsys-scripts-0.95-39
