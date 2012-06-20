@@ -12,7 +12,7 @@ int main(void)
 
     char if_name[IFNAMSIZ];
 
-    int tun_fd = tun_alloc(IFF_TAP, if_name);
+    int tun_fd = tun_alloc(IFF_TUN, if_name);
 
     printf("Allocated tap device: %s fd=%d\n", if_name, tun_fd);
 
