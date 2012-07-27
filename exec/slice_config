@@ -1,11 +1,19 @@
-#!/bin/sh
+#!/usr/bin/python
 
-BASEPATH=/etc/planetlab/vsys-attributes/$1
-if [ -e $BASEPATH ]; then
-cd $BASEPATH
-for KEY in *
-do
-  INNER_KEY=`echo $KEY | cut -d_ -f 2`
-  echo $INNER_KEY": "`cat $BASEPATH/$KEY`
-done
-fi
+import xmlrpclib
+import sys
+
+api_server = xmlrpclib.ServerProxy('https://www.vicci.org/PLCAPI/', allow_none=True)
+api_session = open('/etc/planetlab/session').read().rstrip()
+
+auth = {'AuthMethod':'session','session':api_session}
+
+slice = api_server.GetSlices(auth,{'name':sys.argv[1]})
+slice_id = slice[0]['slice_id']
+
+slice_config = api_server.GetSliceTags(auth,{'slice_id':slice_id})
+
+for tag in slice_config:
+        key = tag['tagname']
+        value = tag['value']
+        print "%s: %s"%(key,value)
