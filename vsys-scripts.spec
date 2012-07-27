@@ -8,7 +8,7 @@
 
 %define name vsys-scripts
 %define version 0.95
-%define taglevel 42
+%define taglevel 43
 
 %define release %{taglevel}%{?pldistro:.%{pldistro}}%{?date:.%{date}}
 
@@ -54,6 +54,8 @@ rm -rf $RPM_BUILD_ROOT
 %postun
 
 %changelog
+* Fri Jul 27 2012 Sapan Bhatia <sapanb@cs.princeton.edu> - vsys-scripts-0.95-43
+
 * Mon Jul 09 2012 Thierry Parmentelat <thierry.parmentelat@sophia.inria.fr> - vsys-scripts-0.95-42
 - fix TUN devices creation (was always creating TAP's)
 
