@@ -3,8 +3,6 @@
 #
 # RPM spec file
 #
-# $Id$
-#
 
 %define name vsys-scripts
 %define version 0.95
@@ -15,7 +13,7 @@
 Vendor: PlanetLab
 Packager: PlanetLab Central <support@planet-lab.org>
 Distribution: PlanetLab %{plrelease}
-URL: %(echo %{url} | cut -d ' ' -f 2)
+URL: %{SCMURL}
 
 Summary: Vsys scripts scripts
 Name: %{name}
@@ -37,11 +35,11 @@ to which users require privileged access.
 
 %build
 rm -rf $RPM_BUILD_ROOT
-make
+make -C root-context
 
 %install
 mkdir -p $RPM_BUILD_ROOT/vsys
-cp exec/* $RPM_BUILD_ROOT/vsys
+cp root-context/exec/* $RPM_BUILD_ROOT/vsys
 
 %clean
 rm -rf $RPM_BUILD_ROOT
@@ -57,7 +55,7 @@ rm -rf $RPM_BUILD_ROOT
 * Fri Jul 27 2012 Sapan Bhatia <sapanb@cs.princeton.edu> - vsys-scripts-0.95-43
 
 * Mon Jul 09 2012 Thierry Parmentelat <thierry.parmentelat@sophia.inria.fr> - vsys-scripts-0.95-42
-- fix TUN devices creation (was always creating TAP's)
+- fix TUN devices creation (was always creating TAPs)
 
 * Tue Jun 12 2012 Sapan Bhatia <sapanb@cs.princeton.edu> - vsys-scripts-0.95-41
 
