@@ -2,6 +2,8 @@ SRC = src
 TEST = test
 BUILDDIR = build
 DISTDIR = dist
+# expected to be set from the specfile
+DESTDIR ?= /
 
 SUBBUILDDIR = $(shell python -c 'import distutils.util, sys; print "lib.%s-%s" % (distutils.util.get_platform(), sys.version[0:3])')
 BUILDDIR := $(BUILDDIR)/$(SUBBUILDDIR)
@@ -13,7 +15,7 @@ all:
 	./setup.py build
 
 install: all
-	./setup.py install
+	./setup.py install --root=$(DESTDIR)
 
 test: all
 	retval=0; \
