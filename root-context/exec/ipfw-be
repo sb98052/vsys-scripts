@@ -2,7 +2,6 @@
 #
 # Marta Carbone, Luigi Rizzo
 # Copyright (C) 2009 Universita` di Pisa
-# $Id$
 #
 # This script the vsys backend used to configure emulation.
 # In detail it:
