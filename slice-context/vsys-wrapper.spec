@@ -6,7 +6,7 @@
 
 %define name vsys-wrapper
 %define version 0.95
-%define taglevel 43
+%define taglevel 44
 
 %define release %{taglevel}%{?pldistro:.%{pldistro}}%{?date:.%{date}}
 
@@ -50,3 +50,7 @@ rm -rf $RPM_BUILD_ROOT
 %postun
 
 %changelog
+* Tue Sep 04 2012 Thierry Parmentelat <thierry.parmentelat@sophia.inria.fr> - vsys-scripts-0.95-44
+- new slice-oriented package vsys-wrapper (python wrapper)
+- new layout of the module, spit between root-context and slice-context
+
