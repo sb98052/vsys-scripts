@@ -122,7 +122,7 @@ int main(int argc, char *argv[])
     
     if( ioctl(tap_fd, TUNSETIFF, (void *) &ifr) < 0 ) {
         close(tap_fd);
-        perror("fd_tuntap: Failed to set tun type");
+        perror("fd_tuntap: Failed to set tun/tap name");
     }
 
     /* Read initialised interface name */
