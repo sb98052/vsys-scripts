@@ -1,0 +1,99 @@
+#!/usr/bin/python
+# Vsys script to set a device in promisc mode
+# The user needs to have the device allocated to him
+# via the vsys_vnet tag. Set vsys_vnet to the IP address of
+# the device. 
+#
+# From the slice:
+# cat > /vsys/promisc.in
+# vif312
+# ^D
+# 
+# To disable promisc mode:
+#
+# cat > /vsys/promisc.in
+# vif312
+# -
+# ^D
+#
+# (Notice the - on a newline)
+
+
+import sys
+import pwd
+import re
+import socket
+import struct
+import os
+import string
+import fcntl
+
+vsys_config_dir = "/etc/planetlab/vsys-attributes"
+
+def get_ip_address(ifname):
+    s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    return socket.inet_ntoa(fcntl.ioctl(
+        s.fileno(),
+        0x8915,  # SIOCGIFADDR
+        struct.pack('256s', ifname[:15])
+    )[20:24])
+
+if len(sys.argv) != 2: sys.exit(1)
+
+slicename=sys.argv[1]
+netblock_config=os.path.join(vsys_config_dir,slicename,"vsys_vnet")
+
+# Read netblock allocation file
+base = None
+
+for netblock in open(netblock_config,'r'):
+    base, mask = netblock.split('/')
+
+if base is None:
+    print >>sys.stderr, "Could not find entry for slice %s in netblock config file %s" % (slicename, netblock_config)
+    sys.exit(1)
+
+### Read args from stdin
+arglines = map(string.strip, sys.stdin.readlines())
+
+if len(arglines)<1:
+    print >>sys.stderr, "Insufficient argument lines."
+    sys.exit(1)
+
+vif = arglines[0] # interface name
+
+if (len(arglines)==2 and arglines[1]=='-'):
+    neg = True
+else:
+    neg = False
+
+vip = get_ip_address(vif)
+
+
+# Convert network base addr to int format by unpacking as 32bit net-ordered long (!L)
+base_int = struct.unpack('!L',socket.inet_aton(base))[0]
+mask = int(mask)
+
+### Validate args
+# Validate interface name
+if len(vif)>16:
+    print >>sys.stderr, "Interface name %s invalid"%(vif)
+    sys.exit(1)
+
+try:
+    vip_int = struct.unpack('!L',socket.inet_aton(vip))[0]
+except socket.error:
+    print >>sys.stderr, "Invalid IP: %s" % vip
+    sys.exit(1)
+
+# Check IP is in netblock
+if (vip_int>>(32-mask)) != (base_int>>(32-mask)):
+    print >>sys.stderr, "Requested IP %s not in netblock %s/%d" % (vip,base,mask)
+    sys.exit(1)
+
+# OK. All checks passed. We can now act on the device.
+
+if (not neg):
+    os.system('ifconfig %s promisc'%vif)
+else:
+    os.system('ifconfig %s -promisc'%vif)
