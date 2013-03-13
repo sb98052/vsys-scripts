@@ -19,6 +19,7 @@
 #   -   gre=somestring    : computes GRE key as a hash of the provided string
 #   -   gre=somekey       : use the provided key as is
 #   - remote=IP : when using GRE, the (public) IP for the remote endpoint
+#   - mtu=N  : set the MTU for the device
 
 import sys
 import pwd
@@ -118,7 +119,7 @@ opt_ovs_dp = None
 opt_pointopoint = None
 opt_gre = None
 opt_gre_remote = None
-
+opt_mtu = None
 
 for optionline in options:
     if len(optionline)==0: continue
@@ -166,6 +167,12 @@ for optionline in options:
         except socket.error,e:
             print >>sys.stderr, "could not parse remote: %s" % (e,)
             sys.exit(1)
+    elif opt=="mtu":
+        intval = int(val)
+        if intval<1:
+            print >>sys.stderr, "MTU value %s out of range" % (val)
+            sys.exit(1)
+        opt_mtu = intval
     else:
         print >>sys.stderr, "Unknown option: \"%s\"" % (opt)
         sys.exit(1)
@@ -217,6 +224,8 @@ if opt_txqueuelen is not None:
     cmd_ifconfig += " txqueuelen %d" % (opt_txqueuelen,)
 if opt_pointopoint is not None:
     cmd_ifconfig += " pointopoint %s" % (opt_pointopoint,)
+if opt_mtu is not None:
+    cmd_ifconfig += " mtu %d" % (opt_mtu,)
 
 # Add iptables rules (Clearing old ones first, if they exist)
 cmd_iptables_in = "/sbin/iptables -A INPUT -i %s -m mark -m state --state NEW ! --mark %d -j DROP" % (vif, sliceid)
