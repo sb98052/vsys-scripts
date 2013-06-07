@@ -246,7 +246,7 @@ cmd_iptables_pr = "/sbin/iptables -t nat -A POSTROUTING -s %s/%d -j SNAT --to-so
 cmd_iptables_del_pr = "/sbin/iptables -t nat -D POSTROUTING -s %s/%d -j SNAT --to-source %s --random > /dev/null 2>&1" % (vip, vmask, public_src)
 
 cmd_iptables_dk = "/sbin/iptables -I OUTPUT -p tcp -s %s/%d --tcp-flags RST RST -j DROP"%(vip,vmask)
-cmd_iptables_del_dk = "/sbin/iptables -D OUTPUT -p tcp -s %s/%d --tcp-flags RST RST -j DROP"%(vip,vmask)
+cmd_iptables_del_dk = "/sbin/iptables -D OUTPUT -p tcp -s %s/%d --tcp-flags RST RST -j DROP > /dev/null 2>&1"%(vip,vmask)
 
 if opt_gre:
     cmd_gre_setup = "modprobe ip_gre ; ip link add %s type %s remote %s local %s ttl 64 csum key %s" % (
