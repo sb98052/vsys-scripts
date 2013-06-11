@@ -6,7 +6,7 @@
 
 %define name vsys-wrapper
 %define version 0.95
-%define taglevel 46
+%define taglevel 47
 
 %define release %{taglevel}%{?pldistro:.%{pldistro}}%{?date:.%{date}}
 
@@ -50,6 +50,9 @@ rm -rf $RPM_BUILD_ROOT
 %postun
 
 %changelog
+* Tue Jun 11 2013 Thierry Parmentelat <thierry.parmentelat@sophia.inria.fr> - vsys-scripts-0.95-47
+- Giuseppe Lettieri's patch for ignoring glitches when tearing down iptables rules
+
 * Tue Apr 23 2013 Thierry Parmentelat <thierry.parmentelat@sophia.inria.fr> - vsys-scripts-0.95-46
 - vif_up can set dropkern and mtu
 
