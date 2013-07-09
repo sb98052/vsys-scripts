@@ -1,0 +1,368 @@
+#!/bin/bash
+#
+# Giovanni Di Stasi
+# <giovanni.distasi on the unina.it domain>
+# Copyright (C) 2009-2013 UniNa
+#
+# This is a backend script to be used with
+# the vsys system. It allows to define and 
+# manage slice-specific routing tables. 
+# The routing rules added to these routing 
+# tables affect only the respective slices.  
+#
+# This script is meant to be called from a 
+# frontend script in the slice environment. 
+#
+# Fronted usage:
+#
+# sliceip route show 
+#   Shows the current routing rules of the
+#   slice-specific routing table
+#
+# sliceip route add to <destination> via <gateway> dev <interface>
+#   Adds a rule to reach <destination> through the host
+#   <gateway> that can be reached on the interface <interface>
+# ...
+# 
+# sliceip in general supports all the commands of the "ip" command of
+# the "iproute2" suite. Refer to ip manpage for further information.
+# 
+# Some examples:
+#	sliceip route add to 143.225.229.142 via 192.168.8.2 dev ath0
+#	sliceip route add default via 10.1.1.1 dev ath0
+#	sliceip route add to 143.225.229.142  nexthop via 192.168.0.1 dev eth1  \
+#	weight 1 src 192.168.0.2 nexthop via 192.168.1.1 dev eth2 weight 1 
+#
+# sliceip can also be used without a frontend program as follows.
+#
+# First use cat to show the output:
+# cat < /vsys/sliceip.out &
+# Then issue a command as, e.g., the following routing rule:
+# echo "route add to some_ip via some_other_ip dev eth0" > /vsys/sliceip.in
+#
+# If you want to test the script from the root context you need 
+# to call it as vsys would do:
+# sliceip <slice_name>
+# Then you can issue to its standard input the commands previously explained
+# (but you have to remove the initial "sliceip"). Ex.:
+#	 route add to 143.225.229.142 via 192.168.8.2 dev ath0
+#
+# A frontend sliceip script can therefore be created as follows:
+# #!/bin/bash
+# cat < /vsys/sliceip.out &
+# echo $* > /vsys/sliceip.in
+#
+# Notes for PlanetLab developers:
+# For sliceip to work correctly it is required that, at boot time 
+# i) stale entries of /etc/iproute2/rt_tables are removed, i.e. lines that 
+# contain slcip; ii) /tmp/ is cleaned.
+
+PATH=/bin:/usr/bin:/sbin:/usr/sbin 
+
+# sliver which called the script
+sliver=$1
+
+#file used
+RT_TABLES="/etc/iproute2/rt_tables"
+
+# routing tables from 6 to 249 are used
+FIRST_TABLE=6
+LAST_TABLE=249
+
+DEBUG=0
+
+
+
+# wrapper function used to execute system commands
+function exec(){
+	local command=$1	
+
+	if ! [[ $command ]]; then
+		echo "Error in exec. No argument."
+	else
+		if ! $command; then
+			if [[ $DEBUG == 1 ]]; then echo "Error executing \"$1\""; fi
+		fi
+	fi
+
+}
+
+# Returns the number of routing rules in routing table $table
+function get_num_rules(){
+  local table=$1
+  
+  ip route show table $table | wc -l
+
+}
+
+
+# Assign a routing table to the sliver (by creating a mapping in
+# /etc/iproute2/rt_tables).
+# If all the routing tables are assigned, remove the mappings
+# for slivers that do not have rules in their routing
+# tables.
+function create_table(){
+
+	  local table_sliver=$1
+
+	  #if the table already exists, returns immediately
+	  if grep "$table_sliver" $RT_TABLES >/dev/null 2>&1; then
+	    return 0
+	  fi
+	
+	  #... otherwise find a free routing table to assign to the sliver
+	  k=$FIRST_TABLE
+	  while [[ $k -lt $((LAST_TABLE+1)) ]] && grep "$k " $RT_TABLES >/dev/null 2>&1 ; do
+		k=$((k+1));
+	  done
+	
+	  #if all were already assigned, remove unused assignements
+	  if [[ $k == $((LAST_TABLE+1)) ]]; then
+	      k=$FIRST_TABLE
+	      while [[ $k -lt $((LAST_TABLE+1)) ]] && grep "$k " $RT_TABLES >/dev/null 2>&1 ; do
+		if [[ `get_num_rules $k` == 0 ]]; then
+		 delete_table `cat $RT_TABLES | grep "$k " | cut -d " " -f 2`
+		fi
+		k=$((k+1));
+	      done
+
+      	      #pick the first that has become available, if any
+	      k=$FIRST_TABLE
+	      while [[ $k -lt $((LAST_TABLE+1)) ]] && grep "$k " $RT_TABLES >/dev/null 2>&1 ; do
+		k=$((k+1));
+	      done
+	      
+	      #otherwise give up and return that no table is available
+	      if [[ $k == $((LAST_TABLE+1)) ]]; then
+		echo "No routing tables available. Exiting."
+		return 1
+	      fi
+	
+	  fi
+	
+	  echo "$k $table_sliver" >> $RT_TABLES
+
+	  set_routes $sliver $table_sliver
+	  	  
+	  return 0
+}
+
+# Delete the slice-specific routing table
+function delete_table(){
+	local table_name=$1
+	local sliver=`basename $table_name "_slcip"`
+
+	if ! grep $table_name $RT_TABLES > /dev/null 2>&1; then
+		return 1			
+	else
+		exec "ip route flush table $table_name" >/dev/null 2>&1
+		unset_routes $sliver $table_name
+		remove_line "$RT_TABLES" "$table_name"  	
+	fi
+
+	return 0
+}
+
+# Remove a line from a file
+function remove_line(){
+	local filename=$1
+	local regex=$2
+
+	#remove interface line from the file
+	exec "sed -i /${regex}/d $filename"
+}
+
+# Get the slice-specific routing table name
+function get_table_name(){
+	local sliver=$1;
+	echo "${sliver}_slcip"
+}
+
+# Remove files used by sliceip and the added routing tables 
+function clean_iproute_conf(){
+	while grep "slcip" $RT_TABLES >/dev/null 2>&1; do
+		remove_line $RT_TABLES "slcip"
+	done
+}
+
+
+# Get sliver's virtual interface
+function get_sliver_veth(){
+  local sliver=$1
+  cat /var/run/libvirt/lxc/$sliver.xml | grep "target dev"  | cut -d "=" -f 2 | cut -d "'" -f 2
+}
+
+function get_sliver_ip(){
+  local sliver=$1
+  local interface=eth0	
+  local ip=""
+	
+  ip=`echo "ifconfig $interface" | lxcsu $sliver | grep inet\ addr | cut -d ":" -f 2 | cut -d " " -f 1`;
+
+  if valid_dotted_quad $ip; then 
+	echo $ip;
+  else 
+	echo "";
+  fi	
+			
+}  
+
+
+
+# set the firewall rules.
+# Basically source routing is enabled.
+function set_routes(){
+	local sliver=$1
+	local table_name=$2
+	#local sliver_veth=`get_sliver_veth $sliver`
+	local sliver_ip=`get_sliver_ip $sliver`
+
+	# Set $table_name as routing table for the sliver
+	# through source routing
+	#exec "ip rule add iif $sliver_veth table $table_name"	
+	exec "ip rule add from $sliver_ip table $table_name"	
+
+	exec "ip route flush cache"  >/dev/null 2>&1
+
+	#Flush stale routing rules in $table_name
+	exec "ip route flush table $table_name"
+}
+
+
+# Remove the firewall rules. 
+function unset_routes(){
+	local sliver=$1
+	local table_name=$2
+	#local sliver_veth=`get_sliver_veth $sliver`
+	local sliver_ip=`get_sliver_ip $sliver`
+
+
+	# Unset $table_name as routing table for the sliver
+	# through source routing
+	exec "ip rule del from $sliver_ip table $table_name"	
+
+	exec "ip route flush cache"  >/dev/null 2>&1
+}
+
+
+# Get the ip address of an interface
+function get_address(){
+	local interface=$1	
+	local ip=""
+	
+	ip=`ifconfig $interface | grep inet\ addr | cut -d ":" -f 2 | cut -d " " -f 1`;
+
+	if valid_dotted_quad $ip; then 
+		echo $ip;
+	else 
+		echo "";
+	fi	
+			
+}
+
+
+# Log function
+function logm(){
+	logger $1
+}
+
+
+
+
+# Check an ip address for correcteness  
+function valid_dotted_quad(){
+    oldIFS=$IFS
+    IFS=.
+    set -f
+    set -- $1
+    if [ $# -eq 4 ]
+    then
+      for seg
+      do
+        case $seg in
+            ""|*[!0-9]*) return 1; break ;; ## Segment empty or non-numeric char
+            *) [ $seg -gt 255 ] && return 2 ;;
+        esac
+      done
+    else
+      return 3 ## Not 4 segments
+    fi
+    IFS=$oldIFS
+    set +f
+    return 0;
+}
+
+# Check to see if the command start with "route"
+function checkCommand(){
+
+  local cmd="$1"
+  local first=`echo "$cmd" | awk '{print $1}'`
+  #local second=`echo $cmd | awk '{print $2}'`
+  
+  
+  if [[ "$first" != "route" ]]; then
+    echo "Command must start with route."
+    return 1
+  fi
+  
+  return 0
+  
+}
+
+# BEGIN
+# the script starts here
+
+if [[ $sliver == "" ]]; then
+	echo "I need the first argument (the sliver name)";
+	exit 1
+fi
+
+# read a line from the vsys pipe
+read line
+
+# separate the first two words of the line from the rest
+command=`echo $line | awk '{print $1 " " $2}'`
+rest=`echo $line | awk '{ for (i = 3; i<=NF; i++) { printf "%s ",$i } }'`
+
+#rest=`echo ${line#* }`
+
+
+
+case "$command" in
+  enable)
+	#enable and disable kept for compatibility
+	logger "sliceip command received from $sliver: $line"	
+	;;
+
+  disable)
+	logger "sliceip command received from $sliver: $line"
+	;;
+
+  *)
+	logger "sliceip command received from $sliver: $line"
+  	
+	#no concurrent executions of sliceip allowed  
+	while ! mkdir /tmp/sliceip.lock >/dev/null 2>&1; do
+	  sleep 0.5
+	done
+	
+	table_sliver=`get_table_name $sliver`
+	
+	#checks the command, creates the routing table and adds the rule
+	if checkCommand "$command" && create_table $table_sliver; then
+	  
+	
+	  #add the routing rule - ip is called with the same parameters of sliceip but the indication of 
+	  #the table in which the rule is to be inserted is inserted		
+	  exec "ip $command table $table_sliver $rest"
+	
+	fi
+	
+	#remove the lock
+	rmdir /tmp/sliceip.lock
+	  
+	;;
+
+esac
+
+exit 0
