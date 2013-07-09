@@ -1,0 +1,17 @@
+#!/bin/bash
+#
+# relying on nodemanager to create this file
+virtfile=/etc/planetlab/virt
+# if not existent or corrupted, we will assume vs
+virt=vs
+if [ -f $virtfile ] ; then
+    case $(cat $virtfile) in
+	vs) virt=vs;;
+	lxc) virt=lxc;;
+    esac
+fi
+
+# try to avoid depending on PATH
+virt_command=$(dirname $0)/sliceip.$virt
+
+exec $virt_command "$@"
