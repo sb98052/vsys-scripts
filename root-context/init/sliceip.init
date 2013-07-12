@@ -1,0 +1,10 @@
+#!/bin/bash
+# required at boot-time for smooth operation of the umts-related scripts
+# chkconfig: 2345 99 01
+
+function start () { sed -i -e '/slcip/ d' /etc/iproute2/rt_tables ; }
+
+case $1 in
+     start) start;;
+     *) ;;
+esac

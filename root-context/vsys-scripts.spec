@@ -39,13 +39,15 @@ make -C root-context
 
 %install
 mkdir -p $RPM_BUILD_ROOT/vsys
-cp root-context/exec/* $RPM_BUILD_ROOT/vsys
+install -D root-context/exec/* $RPM_BUILD_ROOT/vsys/
+install -D root-context/init/sliceip.init ${prefix}/etc/rc.d/init.d/sliceip
 
 %clean
 rm -rf $RPM_BUILD_ROOT
 
 %files
-/vsys/*
+/vsys/
+/etc/rc.d/init.d/
 
 %post
 
