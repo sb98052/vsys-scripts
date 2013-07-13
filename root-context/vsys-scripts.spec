@@ -6,7 +6,7 @@
 
 %define name vsys-scripts
 %define version 0.95
-%define taglevel 47
+%define taglevel 48
 
 %define release %{taglevel}%{?pldistro:.%{pldistro}}%{?date:.%{date}}
 
@@ -54,6 +54,9 @@ rm -rf $RPM_BUILD_ROOT
 %postun
 
 %changelog
+* Sun Jul 14 2013 Thierry Parmentelat <thierry.parmentelat@sophia.inria.fr> - vsys-scripts-0.95-48
+- sliceip has support for lxc and vs nodes (Thanks Giovanni)
+
 * Tue Jun 11 2013 Thierry Parmentelat <thierry.parmentelat@sophia.inria.fr> - vsys-scripts-0.95-47
 - Giuseppe Lettieri's patch for ignoring glitches when tearing down iptables rules
 
