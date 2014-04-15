@@ -1,0 +1,64 @@
+#!/usr/bin/python
+# Lets a user loopback-mount a private fs of a given type.
+# To use, configure the following vsys-attributes in addition to setting the vsys tag for the slice
+# - vsys_privatefs_list -> comma-separated list of desired filesystems, e.g. xfs,btrfs
+# - vsys_privatefs_size -> desired size in megabytes
+
+import sys
+import os
+import string
+
+vsys_config_dir = "/etc/planetlab/vsys-attributes"
+slicename=sys.argv[1]
+sliceroot='/vservers/%s'%slicename
+
+private_fs_config=os.path.join(vsys_config_dir,slicename,"vsys_privatefs_list")
+private_fs_size_config=os.path.join(vsys_config_dir,slicename,"vsys_privatefs_size")
+
+private_fs_str = open(private_fs_config).read().rstrip()
+
+nonamespace_path = '/etc/vservers/%s/nonamespace'%slicename
+if (not os.path.isfile(nonamespace_path)):
+	# Touch
+	open(nonamespace_path,'w').close()
+
+	os.system('vserver %s stop'%slicename)
+	os.system('vserver %s start'%slicename)
+	print 'Reconfiguring slice for private mounts'
+	exit(1)
+
+fs_lst = private_fs_str.split(',')
+try:
+	private_fs_size_str = open(private_fs_size_config).read().rstrip()
+	fs_size = int(private_fs_size_str)
+except:
+	fs_size = 100
+
+num_fs = len(fs_lst)
+if num_fs==0:
+    print >>sys.stderr, "Please configure your private filesystems at PLC."
+    sys.exit(1)
+
+for fs in fs_lst:
+	# XXX There's a race condition here. You could 
+	# intervene between the creation of the image
+	# and the mount operation to replace the empty image
+	# with a rogue volume.
+
+	fs_file = '%s/pvtfs-%s'%(sliceroot,fs)
+	os.system('umount %s 2>&1>/dev/null'%fs_file)
+
+	sanity_check_cmd = 'cat /proc/mounts | grep %s | wc -l'%fs_file
+	sanity_check = os.popen(sanity_check_cmd).read().rstrip()
+	if int(sanity_check)!=0:
+		print 'Private fs could not be remounted. Please contact support.'
+		exit(1)
+	os.system('mkdir -p %s'%fs_file)
+	
+	# This is the critical step
+	if (os.system('dd if=/dev/zero of=%s.img bs=1000000 count=%d'%(fs_file,fs_size))):
+		print 'Could not recycle private fs. Please contact support.'
+		exit(1)
+
+	os.system('mkfs.%s %s.img'%(fs,fs_file))
+	os.system('mount -o loop -t %s %s.img %s'%(fs, fs_file, fs_file))
