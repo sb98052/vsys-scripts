@@ -6,7 +6,7 @@
 
 %define name vsys-scripts
 %define version 0.95
-%define taglevel 48
+%define taglevel 49
 
 %define release %{taglevel}%{?pldistro:.%{pldistro}}%{?date:.%{date}}
 
@@ -54,6 +54,9 @@ rm -rf $RPM_BUILD_ROOT
 %postun
 
 %changelog
+* Mon Apr 28 2014 Thierry Parmentelat <thierry.parmentelat@sophia.inria.fr> - vsys-scripts-0.95-49
+- new privilege script pvtfs
+
 * Sun Jul 14 2013 Thierry Parmentelat <thierry.parmentelat@sophia.inria.fr> - vsys-scripts-0.95-48
 - sliceip has support for lxc and vs nodes (Thanks Giovanni)
 
