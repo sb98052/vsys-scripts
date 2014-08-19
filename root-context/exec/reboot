@@ -1,0 +1,4 @@
+#!/bin/sh
+
+vserver $1 stop
+vserver $1 start
