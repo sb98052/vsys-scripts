@@ -6,7 +6,7 @@
 
 %define name vsys-wrapper
 %define version 0.95
-%define taglevel 49
+%define taglevel 50
 
 %define release %{taglevel}%{?pldistro:.%{pldistro}}%{?date:.%{date}}
 
@@ -50,6 +50,9 @@ rm -rf $RPM_BUILD_ROOT
 %postun
 
 %changelog
+* Wed Feb 18 2015 Thierry Parmentelat <thierry.parmentelat@sophia.inria.fr> - vsys-scripts-0.95-50
+- a new vsys script for rebooting a vserver
+
 * Mon Apr 28 2014 Thierry Parmentelat <thierry.parmentelat@sophia.inria.fr> - vsys-scripts-0.95-49
 - new privilege script pvtfs
 
