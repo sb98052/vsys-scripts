@@ -1,0 +1,13 @@
+#!/bin/sh
+
+slice=$1
+xid=`id -u $1`
+
+read magic_signature
+
+delete_cmd='iptables -t mangle -D INPUT -m u32 --u32 "6&0xFF=1 && 4&0x1FFF=0 && 0>>22&0x3C@0>>24=0x0 && 0>>22&0x3C@4='$magic_signature'" -j MARK --set-mark '$xid
+add_cmd='iptables -t mangle -I INPUT -m u32 --u32 "6&0xFF=1 && 4&0x1FFF=0 && 0>>22&0x3C@0>>24=0x0 && 0>>22&0x3C@4='$magic_signature'" -j MARK --set-mark '$xid
+
+eval $delete_cmd
+eval $add_cmd
+
