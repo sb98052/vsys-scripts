@@ -6,7 +6,7 @@
 
 %define name vsys-scripts
 %define version 0.95
-%define taglevel 49
+%define taglevel 50
 
 %define release %{taglevel}%{?pldistro:.%{pldistro}}%{?date:.%{date}}
 
