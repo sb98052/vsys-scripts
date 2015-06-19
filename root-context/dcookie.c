@@ -30,7 +30,7 @@ int main(int argc,char *argv[]) {
 					printf("%s\n",path_buf);
 			}
 			else {
-					printf("% Not found\n");
+					printf("%% Not found\n");
 			}
 		}
 }
