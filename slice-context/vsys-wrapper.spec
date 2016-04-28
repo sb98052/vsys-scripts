@@ -6,7 +6,7 @@
 
 %define name vsys-wrapper
 %define version 0.95
-%define taglevel 51
+%define taglevel 52
 
 %define release %{taglevel}%{?pldistro:.%{pldistro}}%{?date:.%{date}}
 
@@ -50,6 +50,8 @@ rm -rf $RPM_BUILD_ROOT
 %postun
 
 %changelog
+* Thu Apr 28 2016 Stephen Soltesz <soltesz@google.com> - vsys-scripts-0.95-52
+
 * Fri Jun 26 2015 Thierry Parmentelat <thierry.parmentelat@sophia.inria.fr> - vsys-scripts-0.95-51
 - builds on fedora>=21
 - new script reversetraceroute
