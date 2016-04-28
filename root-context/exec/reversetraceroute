@@ -1,13 +1,40 @@
-#!/bin/sh
+#!/bin/bash
+
+# reversetraceroute - This vsys script enables a slice to add an iptables rule
+# that marks ICMP packets containing a "magic key" as destined to a specific
+# slice.
 
 slice=$1
-xid=`id -u $1`
+xid=`id -u $slice`
+if [[ "${slice}" == "uw_geoloc4" ]] ; then
+    magic_string="0xf0f1f2f3"
+else
+    md5=`echo "$slice" | md5sum`
+    magic_string="0x${md5:1:8}"
+fi
+echo "MAGIC: $magic_string"
 
-read magic_signature
+# The iptables rule performs the following checks in order. Checking stops when
+# the first one fails. For more background on the format and how to interpret
+# these rules, please see the "u32" section of:
+# http://ipset.netfilter.org/iptables-extensions.man.html
 
-delete_cmd='iptables -t mangle -D INPUT -m u32 --u32 "6&0xFF=1 && 4&0x1FFF=0 && 0>>22&0x3C@0>>24=0x0 && 0>>22&0x3C@4='$magic_signature'" -j MARK --set-mark '$xid
-add_cmd='iptables -t mangle -I INPUT -m u32 --u32 "6&0xFF=1 && 4&0x1FFF=0 && 0>>22&0x3C@0>>24=0x0 && 0>>22&0x3C@4='$magic_signature'" -j MARK --set-mark '$xid
+# Check that the packet is ICMP (protocol == 1).
+RULE="6&0xFF=1 && "
 
-eval $delete_cmd
-eval $add_cmd
+# Check that the packet has a fragment offset of zero (i.e. not fragmented).
+RULE+="4&0x1FFF=0 && "
 
+# Check that the ICMP packet is type 0 (i.e. Echo Reply).
+RULE+="0>>22&0x3C@0>>24=0x0 && "
+
+# Check that bytes 4-7 of the ICMP payload match the magic string.
+RULE+="0>>22&0x3C@4=$magic_string"
+
+# If all RULE checks pass, then mark this packet as destined to the slice xid.
+
+# Remove rule if already loaded.
+iptables -t mangle -D INPUT -m u32 --u32 "${RULE}" -j MARK --set-mark $xid
+
+# Add rule.
+iptables -t mangle -I INPUT -m u32 --u32 "${RULE}" -j MARK --set-mark $xid
